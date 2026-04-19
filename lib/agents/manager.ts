@@ -6,6 +6,7 @@ import { runCommunityAgent } from "./community";
 import { runPrReviewAgent } from "./pr-review";
 import { runDocsAgent } from "./docs";
 import { runReleaseAgent } from "./release";
+import { runPlannerAgent } from "./planner";
 import type { WorkPacket } from "./types";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -78,26 +79,50 @@ async function _runManager(packet: WorkPacket): Promise<void> {
   const octokit = await getInstallationClient(installationId);
   await ensureLabelsExist(octokit, repoOwner, repoName);
 
+  // ── Planning step — dynamic delegation ───────────────────────────────────
+  const eventSummary = packet.issue
+    ? `GitHub issue opened in ${repoOwner}/${repoName}.\nTitle: "${packet.issue.title}"\nBody: ${packet.issue.body?.slice(0, 400) ?? "(empty)"}\nAuthor: ${packet.issue.author}`
+    : packet.pr
+    ? `GitHub PR opened in ${repoOwner}/${repoName}.\nTitle: "${packet.pr.title}"\nBody: ${packet.pr.body?.slice(0, 400) ?? "(empty)"}\nFiles changed: ${packet.pr.changedFiles.map((f) => f.filename).join(", ")}`
+    : `GitHub event in ${repoOwner}/${repoName}.`;
+
+  const plan = await runStep(runId, "planner", { eventSummary }, () =>
+    runPlannerAgent(eventSummary)
+  );
+
   // ── Issue triage flow ──────────────────────────────────────────────────────
   if (packet.issue) {
     const issueNumber = packet.issue.number;
 
-    // Step 1: Triage
+    // Security escalation — skip regular triage, post neutral message
+    if (plan.agents.includes("escalate_security")) {
+      const body = `A potential security-sensitive report has been received. A maintainer will review this privately before we discuss details publicly.\n\n_Cabinet run: [\`${runId}\`](${APP_URL}/runs/${runId})_`;
+      await addLabels(octokit, repoOwner, repoName, issueNumber, ["cabinet:review-needed"]).catch(() => {});
+      if (config.autonomy.post_comments) {
+        await postIssueComment(octokit, repoOwner, repoName, issueNumber, body).catch(() => {});
+      }
+      await prisma.run.update({ where: { id: runId }, data: { status: "done", finishedAt: new Date(), summary: `Security escalation. Plan: ${plan.reasoning}` } });
+      return;
+    }
+
+    // Step 1: Triage (always for issues)
     const triageOutput = await runStep(runId, "triage", { issue: packet.issue }, () =>
       runTriageAgent(packet)
     );
     packet.triageOutput = triageOutput;
 
-    // Step 2: Community
-    const communityOutput = await runStep(runId, "community", { draft: triageOutput.draft_comment }, () =>
-      runCommunityAgent(packet)
-    );
-    packet.communityOutput = communityOutput;
+    // Step 2: Community (if plan includes it)
+    const communityOutput = plan.agents.includes("community")
+      ? await runStep(runId, "community", { draft: triageOutput.draft_comment }, () =>
+          runCommunityAgent(packet)
+        )
+      : null;
+    if (communityOutput) packet.communityOutput = communityOutput;
 
     // Collect all labels
     const allLabels = dedup([
       ...triageOutput.labels,
-      ...communityOutput.labels,
+      ...(communityOutput?.labels ?? []),
     ]);
 
     // Apply labels
@@ -111,8 +136,8 @@ async function _runManager(packet: WorkPacket): Promise<void> {
     }
 
     // Post comment
-    if (config.autonomy.post_comments) {
-      const body = buildIssueComment(communityOutput.final_comment, runId);
+    if (config.autonomy.post_comments && !plan.skip_comment) {
+      const body = buildIssueComment(communityOutput?.final_comment ?? triageOutput.draft_comment, runId);
       try {
         const comment = await postIssueComment(octokit, repoOwner, repoName, issueNumber, body);
         await recordAction(runId, "post_comment", { issueNumber }, { body }, "success", comment.html_url);
@@ -126,7 +151,7 @@ async function _runManager(packet: WorkPacket): Promise<void> {
       data: {
         status: "done",
         finishedAt: new Date(),
-        summary: `Classified as ${triageOutput.classification} (${Math.round(triageOutput.confidence * 100)}% confidence). Labels: ${allLabels.join(", ")}.`,
+        summary: `[${plan.priority_hint}] ${plan.reasoning} → ${triageOutput.classification} (${Math.round(triageOutput.confidence * 100)}%). Labels: ${allLabels.join(", ")}.`,
       },
     });
     return;
@@ -150,36 +175,38 @@ async function _runManager(packet: WorkPacket): Promise<void> {
       await recordAction(runId, "create_check_run", { prNumber }, {}, "error");
     }
 
-    // Step 1: PR Review
+    // Step 1: PR Review (always)
     const prReviewOutput = await runStep(runId, "pr_review", { pr: packet.pr }, () =>
       runPrReviewAgent(packet)
     );
     packet.prReviewOutput = prReviewOutput;
 
-    // Step 2: Community (rewrite PR comment)
-    const communityOutput = await runStep(runId, "community", { draft: prReviewOutput.recommended_comment }, () =>
-      runCommunityAgent(packet)
-    );
-    packet.communityOutput = communityOutput;
+    // Step 2: Community (plan-gated)
+    const communityOutput = plan.agents.includes("community")
+      ? await runStep(runId, "community", { draft: prReviewOutput.recommended_comment }, () =>
+          runCommunityAgent(packet)
+        )
+      : null;
+    if (communityOutput) packet.communityOutput = communityOutput;
 
-    // Step 3: Docs
-    const docsOutput = await runStep(runId, "docs", { pr: packet.pr }, () =>
-      runDocsAgent(packet)
-    );
-    packet.docsOutput = docsOutput;
+    // Step 3: Docs (plan-gated)
+    const docsOutput = plan.agents.includes("docs")
+      ? await runStep(runId, "docs", { pr: packet.pr }, () => runDocsAgent(packet))
+      : null;
+    if (docsOutput) packet.docsOutput = docsOutput;
 
-    // Step 4: Release
-    const releaseOutput = await runStep(runId, "release", { pr: packet.pr }, () =>
-      runReleaseAgent(packet)
-    );
-    packet.releaseOutput = releaseOutput;
+    // Step 4: Release (plan-gated)
+    const releaseOutput = plan.agents.includes("release")
+      ? await runStep(runId, "release", { pr: packet.pr }, () => runReleaseAgent(packet))
+      : null;
+    if (releaseOutput) packet.releaseOutput = releaseOutput;
 
     // Collect labels
     const allLabels = dedup([
       ...prReviewOutput.labels,
-      ...communityOutput.labels,
-      ...docsOutput.labels,
-      ...releaseOutput.labels,
+      ...(communityOutput?.labels ?? []),
+      ...(docsOutput?.labels ?? []),
+      ...(releaseOutput?.labels ?? []),
     ]);
 
     if (config.autonomy.add_labels && allLabels.length > 0) {
@@ -223,7 +250,7 @@ async function _runManager(packet: WorkPacket): Promise<void> {
       data: {
         status: "done",
         finishedAt: new Date(),
-        summary: `PR review: ${prReviewOutput.risk} risk. Docs impact: ${docsOutput.docs_impact}. Release note: ${releaseOutput.release_note_needed}.`,
+        summary: `[${plan.priority_hint}] ${plan.reasoning} → PR review: ${prReviewOutput.risk} risk. Docs: ${docsOutput?.docs_impact ?? "skipped"}. Release: ${releaseOutput?.release_note_needed ?? "skipped"}.`,
       },
     });
     return;
