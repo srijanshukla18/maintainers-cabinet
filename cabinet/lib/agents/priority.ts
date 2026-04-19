@@ -2,7 +2,8 @@ import { Agent, run } from "@openai/agents";
 import { PriorityOutputSchema, type PriorityOutput } from "./types";
 import type { PublicIssue, PublicPR, PublicRepo } from "../github/public";
 import type { TriageOutput, PrReviewOutput } from "./types";
-import type { AgentTrace } from "./triage";
+import { type AgentTrace, extractUsage } from "./triage";
+import type { RepoMemorySnapshot } from "../briefs/memory";
 
 const PRIORITY_INSTRUCTIONS = `
 You are the Priority Agent for Maintainer's Cabinet.
@@ -44,6 +45,7 @@ export interface PriorityInput {
   issues: Array<PublicIssue & { triage?: TriageOutput }>;
   prs: Array<PublicPR & { review?: PrReviewOutput }>;
   recentCommitSummary: string;
+  memory?: RepoMemorySnapshot;
 }
 
 function buildPriorityMessage(input: PriorityInput): string {
@@ -79,7 +81,17 @@ ${prsSummary || "(none)"}
 
 ## Recent commits
 ${input.recentCommitSummary}
+${input.memory ? `
+## Memory from previous briefs
+- Last brief: ${input.memory.lastBriefAt ?? "none"}
+- Last summary: ${input.memory.lastBriefSummary ?? "none"}
+- Recurring themes: ${input.memory.recurringThemes.join(", ") || "none"}
+- Previous actions recommended: ${input.memory.previousActions.join("; ") || "none"}
+- Top contributors: ${input.memory.topContributors.map((c) => `${c.login}(${c.count})`).join(", ") || "none"}
+- Known issue types: ${Object.entries(input.memory.knownIssueTypes).map(([k, v]) => `${k}:${v}`).join(", ") || "none"}
 
+Use this memory to avoid repeating the same recommendations and to notice patterns (e.g. "stale PRs flagged 3 briefs in a row").
+` : ""}
 Produce a PriorityOutput JSON. Be decisive — pick 3-7 items that matter today.
 `.trim();
 }
@@ -105,5 +117,6 @@ export async function runPriorityAgentDetailed(input: PriorityInput): Promise<Ag
       newItems: (result as { newItems?: unknown }).newItems ?? null,
       lastAgent: (result as { lastAgent?: { name?: string } }).lastAgent?.name ?? null,
     },
+    usage: extractUsage(result),
   };
 }

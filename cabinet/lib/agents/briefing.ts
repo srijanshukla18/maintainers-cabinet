@@ -1,7 +1,7 @@
 import { Agent, run } from "@openai/agents";
 import { BriefingOutputSchema, type BriefingOutput, type PriorityOutput, type PrReviewOutput, type TriageOutput } from "./types";
 import type { PublicIssue, PublicPR, PublicRepo } from "../github/public";
-import type { AgentTrace } from "./triage";
+import { type AgentTrace, extractUsage } from "./triage";
 
 const BRIEFING_INSTRUCTIONS = `
 You are the Briefing Agent for Maintainer's Cabinet.
@@ -86,6 +86,7 @@ export async function runBriefingAgentDetailed(
       newItems: (result as { newItems?: unknown }).newItems ?? null,
       lastAgent: (result as { lastAgent?: { name?: string } }).lastAgent?.name ?? null,
     },
+    usage: extractUsage(result),
   };
 }
 

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db/client";
 import BriefActions from "./actions";
+import TraceFlow from "./trace-flow";
 import type { BriefContextJson, BriefPriorityJson } from "@/lib/briefs/generate";
 
 export const dynamic = "force-dynamic";
@@ -12,16 +13,6 @@ const PRIORITY_COLOR: Record<string, string> = {
   watch: "border-slate-700 bg-slate-900 text-slate-400",
 };
 
-const STEP_COLOR: Record<string, string> = {
-  fetch_repo: "text-cyan-400",
-  fetch_issues: "text-cyan-400",
-  fetch_prs: "text-cyan-400",
-  fetch_commits: "text-cyan-400",
-  triage_issue: "text-violet-400",
-  review_pr: "text-amber-400",
-  priority: "text-fuchsia-400",
-  briefing: "text-emerald-400",
-};
 
 export default async function BriefPage({
   params,
@@ -153,42 +144,27 @@ export default async function BriefPage({
         </div>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6 mb-6 shadow-[0_0_80px_rgba(2,6,23,0.35)]">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500 font-mono">Full Trace</div>
-              <h2 className="text-2xl font-semibold text-white">What every agent did</h2>
-            </div>
-            <div className="text-xs text-slate-500 font-mono">raw input · assistant history · structured output</div>
+          <div className="mb-6">
+            <div className="text-[11px] uppercase tracking-[0.26em] text-slate-500 font-mono">Agent Pipeline</div>
+            <h2 className="text-2xl font-semibold text-white">What every agent did</h2>
+            <div className="text-sm text-slate-500 mt-1">Click any node to inspect its input, output, and agent conversation.</div>
           </div>
 
-          <div className="space-y-3">
-            {brief.traceSteps.map((step) => (
-              <details key={step.id} className="rounded-2xl border border-slate-800 bg-slate-900/40 open:bg-slate-900/60">
-                <summary className="list-none cursor-pointer px-5 py-4 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <span className={`text-[11px] uppercase tracking-[0.22em] font-mono ${STEP_COLOR[step.stepType] ?? "text-slate-500"}`}>
-                      {step.stepType}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-white font-medium truncate">{step.stepName}</div>
-                      <div className="text-xs text-slate-500 font-mono">
-                        {step.targetRef ? `${step.targetRef} · ` : ""}
-                        {step.latencyMs ? `${(step.latencyMs / 1000).toFixed(1)}s` : "-"}
-                        {step.error ? ` · ${step.error}` : ""}
-                      </div>
-                    </div>
-                  </div>
-                  <span className={`text-xs font-mono ${step.status === "error" ? "text-red-400" : "text-emerald-400"}`}>{step.status}</span>
-                </summary>
-
-                <div className="border-t border-slate-800 px-5 py-4 grid lg:grid-cols-3 gap-4">
-                  <TraceBlock title="Input" data={step.inputJson} />
-                  <TraceBlock title="Output" data={step.outputJson} />
-                  <TraceBlock title="Agent history" data={step.traceJson} />
-                </div>
-              </details>
-            ))}
-          </div>
+          <TraceFlow steps={brief.traceSteps.map((s) => ({
+            id: s.id,
+            stepType: s.stepType,
+            stepName: s.stepName,
+            targetRef: s.targetRef,
+            status: s.status,
+            inputJson: s.inputJson,
+            outputJson: s.outputJson,
+            traceJson: s.traceJson,
+            latencyMs: s.latencyMs,
+            tokensIn: s.tokensIn,
+            tokensOut: s.tokensOut,
+            costUsd: s.costUsd,
+            error: s.error,
+          }))} />
         </section>
 
         <details className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6 shadow-[0_0_80px_rgba(2,6,23,0.35)]">
@@ -246,22 +222,6 @@ function QueueStat({ label, value, tone = "neutral" }: { label: string; value: n
   );
 }
 
-function TraceBlock({ title, data }: { title: string; data: unknown }) {
-  if (!data) return null;
-  return (
-    <div className="col-span-1">
-      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-mono mb-2 flex items-center gap-2">
-        <div className="w-1 h-1 rounded-full bg-slate-700"></div>
-        {title}
-      </div>
-      <div className="rounded-xl border border-slate-800/60 bg-[#0a0a0a] p-3">
-        <pre className="text-[11px] leading-relaxed text-slate-400 font-mono overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words max-h-[250px]">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      </div>
-    </div>
-  );
-}
 
 function formatDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;

@@ -1,0 +1,57 @@
+name: Agent Eval Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cabinet_eval
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cabinet_eval
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: cabinet/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: cabinet
+        run: pnpm install --frozen-lockfile
+
+      - name: Push schema
+        working-directory: cabinet
+        run: pnpm db:push
+
+      - name: Seed eval cases
+        working-directory: cabinet
+        run: pnpm seed:evals
+
+      - name: Run evals
+        working-directory: cabinet
+        run: pnpm eval
+        # Exit code 1 if any eval fails — blocks the PR

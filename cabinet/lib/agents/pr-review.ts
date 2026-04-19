@@ -1,6 +1,6 @@
 import { Agent, run } from "@openai/agents";
 import { PrReviewOutputSchema, type PrReviewOutput, type WorkPacket } from "./types";
-import type { AgentTrace } from "./triage";
+import { type AgentTrace, extractUsage } from "./triage";
 
 const PR_REVIEW_INSTRUCTIONS = `
 You are the PR Review Agent for Maintainer's Cabinet.
@@ -85,5 +85,6 @@ export async function runPrReviewAgentDetailed(packet: WorkPacket): Promise<Agen
       newItems: (result as { newItems?: unknown }).newItems ?? null,
       lastAgent: (result as { lastAgent?: { name?: string } }).lastAgent?.name ?? null,
     },
+    usage: extractUsage(result),
   };
 }

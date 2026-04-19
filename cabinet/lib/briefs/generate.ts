@@ -22,7 +22,7 @@ import {
   type PublicRepo,
   type PublicCommit,
 } from "../github/public";
-import { runTriageAgentDetailed } from "../agents/triage";
+import { runTriageAgentDetailed, estimateCost } from "../agents/triage";
 import { runPrReviewAgentDetailed } from "../agents/pr-review";
 import { runPriorityAgentDetailed } from "../agents/priority";
 import {
@@ -38,6 +38,7 @@ import {
   type PriorityOutput,
   type BriefingOutput,
 } from "../agents/types";
+import { loadRepoMemory, updateRepoMemory } from "./memory";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 const DEFAULT_CACHE_MINUTES = 360;
@@ -192,34 +193,44 @@ async function _generateBrief(opts: GenerateBriefOptions, startTime: number) {
     .map((c) => `${c.sha} ${c.message} (${c.author})`)
     .join("\n");
 
+  // Load persistent memory for this repo
+  const memory = await loadRepoMemory(repo.id);
+
   const priorityDetailed = await timedStep(() =>
     runPriorityAgentDetailed({
       repo: repoInfo,
       issues: issuesWithTriage,
       prs: prsWithReview,
       recentCommitSummary,
+      memory: memory ?? undefined,
     })
   );
 
+  const uPri = priorityDetailed.value.usage;
   await recordBriefStep({
     briefId: brief.id,
     stepType: "priority",
-    stepName: "Priority agent ranked today’s queue",
+    stepName: "Priority agent ranked today's queue",
     inputJson: {
       repo: repoInfo,
       issuesCount: issuesWithTriage.length,
       prsCount: prsWithReview.length,
       recentCommitSummary,
+      memory: memory ?? null,
     },
     outputJson: priorityDetailed.value.output,
     traceJson: priorityDetailed.value.trace,
     latencyMs: priorityDetailed.latencyMs,
+    tokensIn: uPri?.inputTokens,
+    tokensOut: uPri?.outputTokens,
+    costUsd: estimateCost(uPri),
   });
 
   const briefingDetailed = await timedStep(() =>
     runBriefingAgentDetailed(repoInfo, priorityDetailed.value.output)
   );
 
+  const uBri = briefingDetailed.value.usage;
   await recordBriefStep({
     briefId: brief.id,
     stepType: "briefing",
@@ -231,6 +242,9 @@ async function _generateBrief(opts: GenerateBriefOptions, startTime: number) {
     outputJson: briefingDetailed.value.output,
     traceJson: briefingDetailed.value.trace,
     latencyMs: briefingDetailed.latencyMs,
+    tokensIn: uBri?.inputTokens,
+    tokensOut: uBri?.outputTokens,
+    costUsd: estimateCost(uBri),
   });
 
   const bodyMarkdown = renderBriefMarkdown(
@@ -263,6 +277,7 @@ async function _generateBrief(opts: GenerateBriefOptions, startTime: number) {
         issues: issuesWithTriage,
         prs: prsWithReview,
         commits: commits.value,
+        memory: memory ?? null,
       } as object,
       prioritiesJson: priorityDetailed.value.output as unknown as object,
       latencyMs: Date.now() - startTime,
@@ -270,6 +285,14 @@ async function _generateBrief(opts: GenerateBriefOptions, startTime: number) {
     },
     include: { traceSteps: true, repo: true },
   });
+
+  // Persist memory for next brief
+  await updateRepoMemory(
+    repo.id,
+    brief.id,
+    finalBrief.contextJson as unknown as BriefContextJson,
+    priorityDetailed.value.output
+  ).catch((err) => console.error("[brief] memory update failed:", err));
 
   return finalBrief;
 }
@@ -293,6 +316,7 @@ async function triageOne(briefId: string, issue: PublicIssue) {
 
   try {
     const detailed = await timedStep(() => runTriageAgentDetailed(packet));
+    const u = detailed.value.usage;
     const step = await recordBriefStep({
       briefId,
       stepType: "triage_issue",
@@ -302,6 +326,9 @@ async function triageOne(briefId: string, issue: PublicIssue) {
       outputJson: detailed.value.output,
       traceJson: detailed.value.trace,
       latencyMs: detailed.latencyMs,
+      tokensIn: u?.inputTokens,
+      tokensOut: u?.outputTokens,
+      costUsd: estimateCost(u),
     });
     return { issueNumber: issue.number, output: detailed.value.output, stepId: step.id };
   } catch (error) {
@@ -342,6 +369,7 @@ async function reviewOne(briefId: string, owner: string, repo: string, pr: Publi
 
   try {
     const detailed = await timedStep(() => runPrReviewAgentDetailed(packet));
+    const uPr = detailed.value.usage;
     const step = await recordBriefStep({
       briefId,
       stepType: "review_pr",
@@ -351,6 +379,9 @@ async function reviewOne(briefId: string, owner: string, repo: string, pr: Publi
       outputJson: detailed.value.output,
       traceJson: detailed.value.trace,
       latencyMs: detailed.latencyMs,
+      tokensIn: uPr?.inputTokens,
+      tokensOut: uPr?.outputTokens,
+      costUsd: estimateCost(uPr),
     });
     return { prNumber: pr.number, output: detailed.value.output, stepId: step.id };
   } catch (error) {
@@ -381,6 +412,9 @@ async function recordBriefStep(input: {
   outputJson?: unknown;
   traceJson?: unknown;
   latencyMs?: number;
+  tokensIn?: number;
+  tokensOut?: number;
+  costUsd?: number;
   error?: string;
 }) {
   return prisma.briefTraceStep.create({
@@ -394,6 +428,9 @@ async function recordBriefStep(input: {
       outputJson: input.outputJson === undefined ? undefined : json(input.outputJson),
       traceJson: input.traceJson === undefined ? undefined : json(input.traceJson),
       latencyMs: input.latencyMs,
+      tokensIn: input.tokensIn,
+      tokensOut: input.tokensOut,
+      costUsd: input.costUsd,
       error: input.error,
       finishedAt: new Date(),
     },

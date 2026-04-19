@@ -9,6 +9,26 @@ export interface AgentTrace<T> {
     newItems: unknown;
     lastAgent: string | null;
   };
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  } | null;
+}
+
+const GPT4O_INPUT_COST = 2.50 / 1_000_000;  // $2.50 per 1M input tokens
+const GPT4O_OUTPUT_COST = 10.00 / 1_000_000; // $10.00 per 1M output tokens
+
+export function extractUsage(result: unknown): AgentTrace<unknown>["usage"] {
+  const state = (result as { state?: { usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } } }).state;
+  const u = state?.usage;
+  if (!u || !u.totalTokens) return null;
+  return { inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0, totalTokens: u.totalTokens ?? 0 };
+}
+
+export function estimateCost(usage: AgentTrace<unknown>["usage"]): number {
+  if (!usage) return 0;
+  return usage.inputTokens * GPT4O_INPUT_COST + usage.outputTokens * GPT4O_OUTPUT_COST;
 }
 
 const TRIAGE_INSTRUCTIONS = `
@@ -87,5 +107,6 @@ export async function runTriageAgentDetailed(packet: WorkPacket): Promise<AgentT
       newItems: (result as { newItems?: unknown }).newItems ?? null,
       lastAgent: (result as { lastAgent?: { name?: string } }).lastAgent?.name ?? null,
     },
+    usage: extractUsage(result),
   };
 }

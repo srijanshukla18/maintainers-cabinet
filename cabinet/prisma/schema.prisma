@@ -21,8 +21,23 @@ model Repo {
   githubEvents GithubEvent[]
   runs         Run[]
   briefs       Brief[]
+  memory       RepoMemory?
 
   @@unique([owner, name])
+}
+
+model RepoMemory {
+  id              String   @id @default(cuid())
+  repo            Repo     @relation(fields: [repoId], references: [id])
+  repoId          String   @unique
+  lastBriefId     String?
+  lastBriefAt     DateTime?
+  summaryJson     Json     // rolling summary: top recurring themes, known contributors, patterns
+  knownIssueTypes Json     @default("[]") // e.g. ["support_question", "feature_request"] frequency
+  topContributors Json     @default("[]") // [{login, issueCount, prCount}]
+  recurringThemes Json     @default("[]") // ["CSI auth methods", "lease caching"]
+  previousActions Json     @default("[]") // what priority recommended last time
+  updatedAt       DateTime @updatedAt
 }
 
 model GithubEvent {
@@ -142,6 +157,9 @@ model BriefTraceStep {
   outputJson Json?
   traceJson  Json?
   latencyMs  Int?
+  tokensIn   Int?
+  tokensOut  Int?
+  costUsd    Float?
   error      String?
   startedAt  DateTime @default(now())
   finishedAt DateTime?
