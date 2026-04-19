@@ -21,12 +21,63 @@ type RunResponse = {
   lastRunAt?: string;
 };
 
+type HistoryRun = { runAt: string; passed: number; total: number; rate: number };
+
 const TYPE_COLOR: Record<string, string> = {
   issue_triage: "bg-blue-900 text-blue-300",
   pr_review: "bg-purple-900 text-purple-300",
   release: "bg-yellow-900 text-yellow-300",
   community: "bg-pink-900 text-pink-300",
 };
+
+function ScoreChart({ runs }: { runs: HistoryRun[] }) {
+  if (runs.length < 2) {
+    return (
+      <div className="flex items-center justify-center h-24 text-gray-600 text-sm">
+        Run evals at least twice to see trend
+      </div>
+    );
+  }
+
+  const W = 600, H = 120, PAD = 24;
+  const maxRate = 100;
+  const xs = runs.map((_, i) => PAD + (i / (runs.length - 1)) * (W - PAD * 2));
+  const ys = runs.map((r) => PAD + (1 - r.rate / maxRate) * (H - PAD * 2));
+  const line = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x},${ys[i]}`).join(" ");
+  const area = `${line} L${xs.at(-1)},${H - PAD} L${PAD},${H - PAD} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }}>
+      {/* Grid lines */}
+      {[0, 50, 100].map((pct) => {
+        const y = PAD + (1 - pct / 100) * (H - PAD * 2);
+        return (
+          <g key={pct}>
+            <line x1={PAD} y1={y} x2={W - PAD} y2={y} stroke="#374151" strokeWidth="1" strokeDasharray="4 3" />
+            <text x={PAD - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#6b7280">{pct}%</text>
+          </g>
+        );
+      })}
+      {/* Area fill */}
+      <path d={area} fill="url(#grad)" opacity="0.3" />
+      {/* Line */}
+      <path d={line} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" />
+      {/* Dots + tooltips */}
+      {runs.map((r, i) => (
+        <g key={i}>
+          <circle cx={xs[i]} cy={ys[i]} r="4" fill={r.rate >= 80 ? "#34d399" : r.rate >= 60 ? "#fbbf24" : "#f87171"} />
+          <title>{new Date(r.runAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} — {r.rate}% ({r.passed}/{r.total})</title>
+        </g>
+      ))}
+      <defs>
+        <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
 
 function EvalCard({ r }: { r: EvalResult }) {
   const [open, setOpen] = useState(false);
@@ -94,6 +145,14 @@ export default function EvalsPage() {
   const [result, setResult] = useState<RunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<HistoryRun[]>([]);
+
+  useEffect(() => {
+    fetch("/api/evals/history")
+      .then((r) => r.json())
+      .then((data: HistoryRun[]) => setHistory(data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/evals")
@@ -140,7 +199,9 @@ export default function EvalsPage() {
       const res = await fetch("/api/evals/run", { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setResult({ ...data, lastRunAt: new Date().toISOString() });
+      const runAt = new Date().toISOString();
+      setResult({ ...data, lastRunAt: runAt });
+      setHistory((h) => [...h, { runAt, passed: data.passed, total: data.total, rate: Math.round((data.passed / data.total) * 100) }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -185,6 +246,18 @@ export default function EvalsPage() {
         {error && (
           <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-6 text-red-300 text-sm">
             {error}
+          </div>
+        )}
+
+        {history.length > 0 && (
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 mb-6">
+            <div className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-3">Pass rate over time</div>
+            <ScoreChart runs={history} />
+            <div className="flex justify-between text-[10px] text-gray-600 font-mono mt-1 px-1">
+              <span>{new Date(history[0].runAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+              <span>{history.length} run{history.length !== 1 ? "s" : ""}</span>
+              <span>{new Date(history.at(-1)!.runAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+            </div>
           </div>
         )}
 
