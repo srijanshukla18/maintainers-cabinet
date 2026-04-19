@@ -1,4 +1,3 @@
-import { Agent, Runner } from "@openai/agents";
 import { zodTextFormat } from "openai/helpers/zod";
 import OpenAI from "openai";
 import { TriageOutputSchema, type TriageOutput, type WorkPacket } from "./types";
