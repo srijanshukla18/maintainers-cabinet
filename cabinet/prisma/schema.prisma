@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Repo {
+  id             String   @id @default(cuid())
+  githubRepoId   BigInt   @unique
+  owner          String
+  name           String
+  installationId BigInt
+  defaultBranch  String   @default("main")
+  configJson     Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  githubEvents GithubEvent[]
+  runs         Run[]
+
+  @@unique([owner, name])
+}
+
+model GithubEvent {
+  id          String    @id @default(cuid())
+  repo        Repo      @relation(fields: [repoId], references: [id])
+  repoId      String
+  deliveryId  String    @unique
+  eventType   String
+  action      String?
+  payloadJson Json
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  status      String    @default("pending") // pending | processing | done | error
+
+  runs Run[]
+}
+
+model Run {
+  id                  String    @id @default(cuid())
+  repo                Repo      @relation(fields: [repoId], references: [id])
+  repoId              String
+  githubEvent         GithubEvent? @relation(fields: [githubEventId], references: [id])
+  githubEventId       String?
+  runType             String    // issue_triage | pr_review | workflow_failure | release_plan | slash_command
+  status              String    @default("pending") // pending | running | done | error
+  triggerSource       String    // webhook | slash_command | manual
+  githubTargetType    String?   // issue | pull_request
+  githubTargetNumber  Int?
+  startedAt           DateTime  @default(now())
+  finishedAt          DateTime?
+  latencyMs           Int?
+  summary             String?
+
+  agentSteps    AgentStep[]
+  githubActions GithubAction[]
+}
+
+model AgentStep {
+  id         String   @id @default(cuid())
+  run        Run      @relation(fields: [runId], references: [id])
+  runId      String
+  agentName  String
+  inputJson  Json
+  outputJson Json?
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  status     String   @default("running") // running | done | error
+  error      String?
+}
+
+model GithubAction {
+  id          String   @id @default(cuid())
+  run         Run      @relation(fields: [runId], references: [id])
+  runId       String
+  actionType  String   // add_labels | post_comment | create_check_run | update_check_run
+  targetJson  Json
+  payloadJson Json
+  status      String   @default("pending") // pending | success | error
+  githubUrl   String?
+  createdAt   DateTime @default(now())
+}
+
+model EvalCase {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  caseType  String   // issue_triage | pr_review | release | community
+  inputJson Json
+  expectedJson Json
+  createdAt DateTime @default(now())
+
+  evalResults EvalResult[]
+}
+
+model EvalResult {
+  id          String   @id @default(cuid())
+  evalCase    EvalCase @relation(fields: [evalCaseId], references: [id])
+  evalCaseId  String
+  actualJson  Json?
+  scoreJson   Json?
+  passed      Boolean?
+  createdAt   DateTime @default(now())
+}

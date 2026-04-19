@@ -1,0 +1,427 @@
+[
+  {
+    "name": "issue-vague-bug",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 101,
+        "title": "It crashes",
+        "body": "It just crashes when I run it. Please fix.",
+        "author": "someuser",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "needs_info",
+      "labels": ["cabinet:needs-info", "cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-good-bug",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 102,
+        "title": "Parser crashes on escaped spaces in config v2.1.0",
+        "body": "## Version\n2.1.0\n\n## Environment\nmacOS 14, Node 20\n\n## Reproduction\n1. Set config key with escaped space\n2. Run parse command\n3. Crash\n\n## Expected\nParsed correctly\n\n## Actual\nUncaught TypeError at tokenize.ts:88",
+        "author": "contributor",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "bug_likely",
+      "labels": ["cabinet:triaged", "cabinet:bug-likely"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-duplicate",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 103,
+        "title": "Same crash as before with config",
+        "body": "Same issue as #12. The config crashes again.",
+        "author": "user2",
+        "labels": [],
+        "similarIssues": [{ "number": 12, "title": "Config parser crash on whitespace" }]
+      }
+    },
+    "expected": {
+      "classification": "possible_duplicate",
+      "labels": ["cabinet:possible-duplicate", "cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-support-question",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 104,
+        "title": "How do I configure SSL?",
+        "body": "Hi, I want to configure SSL. Can you tell me how? Thanks!",
+        "author": "newuser",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "support_question",
+      "labels": ["cabinet:support", "cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-feature-request",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 105,
+        "title": "Add support for YAML config files",
+        "body": "It would be great to support YAML in addition to JSON config files. Many teams use YAML.",
+        "author": "contributor2",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "feature_request",
+      "labels": ["cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-docs",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 106,
+        "title": "README missing CLI flag documentation",
+        "body": "The README doesn't document the --strict flag introduced in v2.0. Users are confused.",
+        "author": "docwatcher",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "docs_issue",
+      "labels": ["cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-hostile",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 107,
+        "title": "This is BROKEN and you clearly don't care",
+        "body": "I've been waiting 3 months! This project is abandoned garbage! Just fix the bug you obviously know about!",
+        "author": "angryuser",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "needs_info",
+      "labels": ["cabinet:needs-info", "cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-security-looking",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 108,
+        "title": "Possible path traversal vulnerability in file loader",
+        "body": "I believe there may be a path traversal issue in the file loader. User-provided paths are not sanitized.",
+        "author": "secresearcher",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "security_sensitive",
+      "labels": ["cabinet:review-needed"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-regression",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 109,
+        "title": "Regression in v2.1.1: strict mode now rejects valid configs",
+        "body": "## Version\n2.1.1\n\n## Environment\nLinux, Node 20\n\n## Reproduction\nAny config that worked in 2.1.0 now fails\n\n## Expected\nConfig loads fine\n\n## Actual\nValidationError: unexpected field",
+        "author": "user3",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "bug_likely",
+      "labels": ["cabinet:bug-likely", "cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "issue-invalid",
+    "caseType": "issue_triage",
+    "input": {
+      "issue": {
+        "number": 110,
+        "title": "test",
+        "body": "test",
+        "author": "testuser",
+        "labels": [],
+        "similarIssues": []
+      }
+    },
+    "expected": {
+      "classification": "invalid_unclear",
+      "labels": ["cabinet:needs-info", "cabinet:triaged"],
+      "no_close": true
+    }
+  },
+  {
+    "name": "pr-no-tests",
+    "caseType": "pr_review",
+    "input": {
+      "pr": {
+        "number": 201,
+        "title": "Refactor parser tokenizer",
+        "body": "Refactored the tokenizer for clarity.",
+        "author": "dev1",
+        "headSha": "abc123",
+        "changedFiles": [
+          { "filename": "src/parser/tokenize.ts", "status": "modified", "patch": "@@ -80,6 +80,10 @@\n+function tokenizeStrict(input) { return input.trim().split(' '); }" }
+        ],
+        "ciStatus": "unknown"
+      }
+    },
+    "expected": {
+      "risk": "medium",
+      "labels": ["cabinet:review-needed"],
+      "docs_impact": false,
+      "release_note_needed": false
+    }
+  },
+  {
+    "name": "pr-docs-only",
+    "caseType": "pr_review",
+    "input": {
+      "pr": {
+        "number": 202,
+        "title": "Fix typo in README",
+        "body": "Fixed a typo.",
+        "author": "dev2",
+        "headSha": "def456",
+        "changedFiles": [
+          { "filename": "README.md", "status": "modified", "patch": "@@ -1,3 +1,3 @@\n-Welcom\n+Welcome" }
+        ],
+        "ciStatus": "success"
+      }
+    },
+    "expected": {
+      "risk": "low",
+      "labels": [],
+      "docs_impact": false,
+      "release_note_needed": false
+    }
+  },
+  {
+    "name": "pr-cli-behavior-change",
+    "caseType": "pr_review",
+    "input": {
+      "pr": {
+        "number": 203,
+        "title": "Add --strict flag to CLI",
+        "body": "Adds a new --strict flag that enables strict validation mode.",
+        "author": "dev3",
+        "headSha": "ghi789",
+        "changedFiles": [
+          { "filename": "src/cli.ts", "status": "modified", "patch": "@@ -45,0 +46,5 @@\n+if (args.strict) { enableStrictMode(); }" },
+          { "filename": "src/config/validator.ts", "status": "modified", "patch": "@@ -10,0 +11,3 @@\n+export function enableStrictMode() { strictMode = true; }" }
+        ],
+        "ciStatus": "success"
+      }
+    },
+    "expected": {
+      "risk": "medium",
+      "labels": ["cabinet:review-needed", "cabinet:docs-needed", "cabinet:release-note-needed"],
+      "docs_impact": true,
+      "release_note_needed": true
+    }
+  },
+  {
+    "name": "pr-large-low-context",
+    "caseType": "pr_review",
+    "input": {
+      "pr": {
+        "number": 204,
+        "title": "Various improvements",
+        "body": "",
+        "author": "dev4",
+        "headSha": "jkl012",
+        "changedFiles": [
+          { "filename": "src/parser/tokenize.ts", "status": "modified" },
+          { "filename": "src/parser/ast.ts", "status": "modified" },
+          { "filename": "src/parser/resolver.ts", "status": "modified" },
+          { "filename": "src/auth/session.ts", "status": "modified" },
+          { "filename": "src/config/loader.ts", "status": "modified" }
+        ],
+        "ciStatus": "unknown"
+      }
+    },
+    "expected": {
+      "risk": "high",
+      "labels": ["cabinet:review-needed"],
+      "docs_impact": false,
+      "release_note_needed": false
+    }
+  },
+  {
+    "name": "pr-valid-small-fix",
+    "caseType": "pr_review",
+    "input": {
+      "pr": {
+        "number": 205,
+        "title": "Fix null dereference in session expiry check",
+        "body": "Fixes #98. The session object could be null when the token expired. Added a guard.",
+        "author": "dev5",
+        "headSha": "mno345",
+        "changedFiles": [
+          { "filename": "src/auth/session.ts", "status": "modified", "patch": "@@ -55,1 +55,4 @@\n+if (!session) return null;\n const expiry = session.expiresAt;" },
+          { "filename": "tests/auth/session.test.ts", "status": "modified", "patch": "@@ -1,0 +2,8 @@\n+it('handles null session', () => { expect(checkExpiry(null)).toBeNull(); });" }
+        ],
+        "ciStatus": "success"
+      }
+    },
+    "expected": {
+      "risk": "low",
+      "labels": [],
+      "docs_impact": false,
+      "release_note_needed": true
+    }
+  },
+  {
+    "name": "release-patch",
+    "caseType": "release",
+    "input": {
+      "pr": {
+        "number": 205,
+        "title": "Fix null dereference in session expiry check",
+        "body": "Fixes #98.",
+        "author": "dev5",
+        "headSha": "mno345",
+        "changedFiles": [
+          { "filename": "src/auth/session.ts", "status": "modified" }
+        ]
+      }
+    },
+    "expected": {
+      "version_impact": "patch",
+      "release_note_needed": true
+    }
+  },
+  {
+    "name": "release-minor",
+    "caseType": "release",
+    "input": {
+      "pr": {
+        "number": 203,
+        "title": "Add --strict flag to CLI",
+        "body": "Adds a new --strict flag that enables strict validation mode.",
+        "author": "dev3",
+        "headSha": "ghi789",
+        "changedFiles": [
+          { "filename": "src/cli.ts", "status": "modified" }
+        ]
+      }
+    },
+    "expected": {
+      "version_impact": "minor",
+      "release_note_needed": true
+    }
+  },
+  {
+    "name": "release-blocked-by-docs",
+    "caseType": "release",
+    "input": {
+      "pr": {
+        "number": 203,
+        "title": "Add --strict flag to CLI",
+        "body": "Adds a new --strict CLI flag. No docs updated yet.",
+        "author": "dev3",
+        "headSha": "ghi789",
+        "changedFiles": [
+          { "filename": "src/cli.ts", "status": "modified" }
+        ]
+      }
+    },
+    "expected": {
+      "version_impact": "minor",
+      "release_note_needed": true
+    }
+  },
+  {
+    "name": "community-rude-user",
+    "caseType": "community",
+    "input": {
+      "issue": {
+        "number": 107,
+        "title": "BROKEN",
+        "body": "This is BROKEN and you clearly don't care. Just fix it obviously.",
+        "author": "angryuser",
+        "labels": [],
+        "similarIssues": []
+      },
+      "triageOutput": {
+        "classification": "needs_info",
+        "confidence": 0.7,
+        "labels": ["cabinet:needs-info"],
+        "missing_fields": ["version", "reproduction_steps"],
+        "similar_issues": [],
+        "recommended_action": "ask_for_info",
+        "draft_comment": "We need version and reproduction steps. Obviously this issue can't be actioned without more info."
+      }
+    },
+    "expected": {
+      "tone_risk_not_high": true,
+      "no_forbidden_phrases": true
+    }
+  },
+  {
+    "name": "community-entitled-user",
+    "caseType": "community",
+    "input": {
+      "issue": {
+        "number": 111,
+        "title": "Fix this NOW it's been 6 months",
+        "body": "I've been waiting 6 months for this fix! You obviously know about it. Just merge the PR already.",
+        "author": "entitleduser",
+        "labels": [],
+        "similarIssues": []
+      },
+      "triageOutput": {
+        "classification": "needs_info",
+        "confidence": 0.6,
+        "labels": ["cabinet:needs-info"],
+        "missing_fields": ["version", "reproduction_steps"],
+        "similar_issues": [],
+        "recommended_action": "ask_for_info",
+        "draft_comment": "Just provide the version and steps to reproduce."
+      }
+    },
+    "expected": {
+      "tone_risk_not_high": true,
+      "no_forbidden_phrases": true
+    }
+  }
+]
