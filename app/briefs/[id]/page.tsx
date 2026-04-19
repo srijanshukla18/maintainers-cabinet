@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db/client";
 import BriefActions from "./actions";
-import TraceFlow from "./trace-flow";
+import TraceFlow from "./trace-flow-client";
 import type { BriefContextJson, BriefPriorityJson } from "@/lib/briefs/generate";
 
 export const dynamic = "force-dynamic";
@@ -143,7 +143,7 @@ export default async function BriefPage({
           <div className="mb-6">
             <div className="text-xs uppercase tracking-wider text-gray-400 font-semibold">Agent Pipeline</div>
             <h2 className="text-2xl font-bold text-gray-900">What every agent did</h2>
-            <div className="text-sm text-gray-500 mt-1">Click any node to inspect input, output, and agent conversation.</div>
+            <div className="text-sm text-gray-500 mt-1">Each card is one AI agent call. Click to inspect its input, output, and token usage.</div>
           </div>
 
           <TraceFlow steps={brief.traceSteps.map((s) => ({

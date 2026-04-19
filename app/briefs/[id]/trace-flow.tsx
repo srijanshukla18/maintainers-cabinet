@@ -18,15 +18,15 @@ type TraceStep = {
   error: string | null;
 };
 
-const STAGE_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
-  fetch_repo:    { label: "Repo",     color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-500" },
-  fetch_issues:  { label: "Issues",   color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-500" },
-  fetch_prs:     { label: "PRs",      color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-500" },
-  fetch_commits: { label: "Commits",  color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-500" },
-  triage_issue:  { label: "Triage",   color: "text-violet-700",  bg: "bg-violet-50",  border: "border-violet-200",  dot: "bg-violet-500" },
-  review_pr:     { label: "Review",   color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   dot: "bg-amber-500" },
-  priority:      { label: "Priority", color: "text-fuchsia-700", bg: "bg-fuchsia-50", border: "border-fuchsia-200", dot: "bg-fuchsia-500" },
-  briefing:      { label: "Briefing", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500" },
+const STAGE_META: Record<string, { label: string; color: string; bg: string; border: string; dot: string; stageBg: string; stageBorder: string }> = {
+  fetch_repo:    { label: "GitHub API",       color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-400",      stageBg: "bg-sky-50/60",     stageBorder: "border-sky-200" },
+  fetch_issues:  { label: "GitHub API",       color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-400",      stageBg: "bg-sky-50/60",     stageBorder: "border-sky-200" },
+  fetch_prs:     { label: "GitHub API",       color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-400",      stageBg: "bg-sky-50/60",     stageBorder: "border-sky-200" },
+  fetch_commits: { label: "GitHub API",       color: "text-sky-700",     bg: "bg-sky-50",     border: "border-sky-200",     dot: "bg-sky-400",      stageBg: "bg-sky-50/60",     stageBorder: "border-sky-200" },
+  triage_issue:  { label: "Triage Agent",     color: "text-violet-700",  bg: "bg-violet-50",  border: "border-violet-200",  dot: "bg-violet-500",   stageBg: "bg-violet-50/60",  stageBorder: "border-violet-200" },
+  review_pr:     { label: "PR Review Agent",  color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   dot: "bg-amber-500",    stageBg: "bg-amber-50/60",   stageBorder: "border-amber-200" },
+  priority:      { label: "Priority Agent",   color: "text-fuchsia-700", bg: "bg-fuchsia-50", border: "border-fuchsia-200", dot: "bg-fuchsia-500",  stageBg: "bg-fuchsia-50/60", stageBorder: "border-fuchsia-200" },
+  briefing:      { label: "Briefing Agent",   color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500",  stageBg: "bg-emerald-50/60", stageBorder: "border-emerald-200" },
 };
 
 function groupSteps(steps: TraceStep[]) {
@@ -60,66 +60,75 @@ export default function TraceFlow({ steps }: { steps: TraceStep[] }) {
   return (
     <div>
       {/* Pipeline */}
-      <div className="flex flex-col">
-        {groups.map((group, gi) => (
-          <div key={gi}>
-            {gi > 0 && (
-              <div className="flex justify-center">
-                <div className="w-px h-4 bg-gray-300"></div>
-              </div>
-            )}
+      <div className="flex flex-col gap-0">
+        {groups.map((group, gi) => {
+          const stageMeta = STAGE_META[group.steps[0]?.stepType] ?? STAGE_META.fetch_repo;
+          const isAgentStage = !group.steps[0]?.stepType.startsWith("fetch_");
 
-            <div className="flex items-start gap-4">
-              <div className="w-[120px] shrink-0 pt-3">
-                <div className="text-[11px] uppercase tracking-wider text-gray-400 font-bold leading-tight">
-                  {group.stage}
-                </div>
-                {group.parallel && group.steps.length > 1 && (
-                  <div className="text-[11px] text-gray-400 font-mono mt-0.5">
-                    {group.steps.length}x parallel
+          return (
+            <div key={gi}>
+              {gi > 0 && (
+                <div className="flex justify-center items-center py-1">
+                  <div className="flex flex-col items-center">
+                    <div className="w-px h-3 bg-gray-300"></div>
+                    <svg width="10" height="6" viewBox="0 0 10 6" className="text-gray-300 fill-current"><path d="M5 6L0 0h10z"/></svg>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              <div className="flex-1 flex flex-wrap gap-2">
-                {group.steps.map((step) => {
-                  const meta = STAGE_META[step.stepType] ?? STAGE_META.fetch_repo;
-                  const isSelected = selected === step.id;
+              <div className={`rounded-xl border ${stageMeta.stageBorder} ${stageMeta.stageBg} p-3`}>
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className={`w-2 h-2 rounded-full ${stageMeta.dot}`}></div>
+                  <span className={`text-[11px] uppercase tracking-wider font-bold ${stageMeta.color}`}>
+                    {group.stage}
+                  </span>
+                  {group.parallel && group.steps.length > 1 && (
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full border ${stageMeta.border} ${stageMeta.color} opacity-70`}>
+                      {group.steps.length} {isAgentStage ? "agent calls" : "fetches"} · parallel
+                    </span>
+                  )}
+                </div>
 
-                  return (
-                    <button
-                      key={step.id}
-                      onClick={() => setSelected(isSelected ? null : step.id)}
-                      className={`
-                        rounded-xl border px-3 py-2.5 text-left transition-all
-                        ${isSelected
-                          ? `${meta.bg} ${meta.border} ring-2 ring-indigo-400`
-                          : `bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm`
-                        }
-                      `}
-                      style={{ minWidth: group.parallel && group.steps.length > 4 ? "130px" : "170px" }}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-2 h-2 rounded-full ${step.status === "error" ? "bg-red-500" : meta.dot}`}></div>
-                        <span className={`text-[11px] uppercase tracking-wider font-bold ${meta.color}`}>
-                          {meta.label}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-800 font-medium line-clamp-1 leading-snug">
-                        {step.targetRef ?? step.stepName.replace(/^(Triage issue |Review PR |Fetched \d+ |Repo metadata for )/, "")}
-                      </div>
-                      <div className="text-[11px] text-gray-400 font-mono mt-1 flex items-center gap-2">
-                        <span>{step.latencyMs ? `${(step.latencyMs / 1000).toFixed(1)}s` : "-"}</span>
-                        {step.tokensIn != null && <span>{step.tokensIn + (step.tokensOut ?? 0)} tok</span>}
-                        {step.costUsd != null && step.costUsd > 0 && <span>${step.costUsd.toFixed(4)}</span>}
-                      </div>
-                    </button>
-                  );
-                })}
+                <div className="flex flex-wrap gap-2">
+                  {group.steps.map((step) => {
+                    const meta = STAGE_META[step.stepType] ?? STAGE_META.fetch_repo;
+                    const isSelected = selected === step.id;
+
+                    return (
+                      <button
+                        key={step.id}
+                        onClick={() => setSelected(isSelected ? null : step.id)}
+                        className={`
+                          rounded-lg border px-3 py-2.5 text-left transition-all cursor-pointer
+                          ${isSelected
+                            ? `${meta.bg} ${meta.border} ring-2 ring-indigo-400 shadow-sm`
+                            : `bg-white border-gray-200 hover:${meta.border} hover:shadow-sm`
+                          }
+                        `}
+                        style={{ minWidth: group.parallel && group.steps.length > 4 ? "130px" : "170px" }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className={`w-1.5 h-1.5 rounded-full ${step.status === "error" ? "bg-red-500" : meta.dot}`}></div>
+                          <span className={`text-[10px] uppercase tracking-wider font-bold ${meta.color}`}>
+                            {meta.label}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-800 font-medium line-clamp-1 leading-snug">
+                          {step.targetRef ?? step.stepName.replace(/^(Triage issue |Review PR |Fetched \d+ |Repo metadata for )/, "")}
+                        </div>
+                        <div className="text-[11px] text-gray-400 font-mono mt-1.5 flex items-center gap-2">
+                          <span>{step.latencyMs ? `${(step.latencyMs / 1000).toFixed(1)}s` : "-"}</span>
+                          {step.tokensIn != null && <span>{step.tokensIn + (step.tokensOut ?? 0)} tok</span>}
+                          {step.costUsd != null && step.costUsd > 0 && <span>${step.costUsd.toFixed(4)}</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Modal */}
