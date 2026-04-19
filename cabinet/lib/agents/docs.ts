@@ -1,5 +1,4 @@
-import OpenAI from "openai";
-import { zodTextFormat } from "openai/helpers/zod";
+import { Agent, run } from "@openai/agents";
 import { DocsOutputSchema, type DocsOutput, type WorkPacket } from "./types";
 
 const DOCS_INSTRUCTIONS = `
@@ -13,10 +12,15 @@ Your job is to detect whether a pull request has docs impact — i.e. whether it
 - Check if the PR title or body mentions new features, behavior changes, or breaking changes.
 - If docs impact is detected, list the specific docs files that should be updated.
 - confidence: how sure you are that docs need updating (0.0 to 1.0).
-
-## Output
-Return valid JSON matching the DocsOutput schema exactly.
+- If the PR is docs-only or test-only with no behavior change, docs_impact should be false.
 `.trim();
+
+const docsAgent = new Agent({
+  name: "Docs Agent",
+  instructions: DOCS_INSTRUCTIONS,
+  model: "gpt-4o",
+  outputType: DocsOutputSchema,
+});
 
 export async function runDocsAgent(packet: WorkPacket): Promise<DocsOutput> {
   if (!packet.pr) throw new Error("No PR context in work packet");
@@ -38,23 +42,11 @@ ${filesSummary}
 
 ## Repo config
 - docs_paths: ${config.review.docs_paths.join(", ")}
-
-Does this PR have docs impact? Produce a docs output JSON.
 `.trim();
 
-  const client = new OpenAI();
-  const response = await client.responses.parse({
-    model: "gpt-4o",
-    input: [
-      { role: "system", content: DOCS_INSTRUCTIONS },
-      { role: "user", content: userMessage },
-    ],
-    text: {
-      format: zodTextFormat(DocsOutputSchema, "docs_output"),
-    },
-  });
+  const result = await run(docsAgent, userMessage);
 
-  const parsed = response.output_parsed;
-  if (!parsed) throw new Error("Docs agent returned no output");
-  return parsed;
+  const output = result.finalOutput as DocsOutput;
+  if (!output) throw new Error("Docs agent returned no output");
+  return output;
 }

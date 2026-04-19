@@ -1,5 +1,4 @@
-import OpenAI from "openai";
-import { zodTextFormat } from "openai/helpers/zod";
+import { Agent, run } from "@openai/agents";
 import { PrReviewOutputSchema, type PrReviewOutput, type WorkPacket } from "./types";
 
 const PR_REVIEW_INSTRUCTIONS = `
@@ -9,16 +8,20 @@ Your job is to produce a lightweight, structured review summary for a pull reque
 
 ## Rules
 - Never approve or request changes — only summarize.
-- Do not claim tests pass unless CI says they pass.
-- Flag missing tests for files matching risky_paths or require_tests_for.
-- Flag large PRs with low context.
-- Flag security-sensitive changes.
-- findings must be specific: include file and evidence.
-- risk level: low = trivial, medium = needs review, high = risky without tests/context.
-
-## Output
-Return valid JSON matching the PrReviewOutput schema exactly.
+- Do not claim tests pass unless CI explicitly says they pass.
+- Flag missing tests for files matching risky_paths or require_tests_for patterns.
+- Flag large PRs with low context (empty body, many files, no description).
+- Flag security-sensitive changes touching auth, config, or parser paths.
+- findings must be specific: include file and evidence where possible.
+- risk levels: low = trivial/docs-only, medium = needs review, high = risky without tests or context.
 `.trim();
+
+const prReviewAgent = new Agent({
+  name: "PR Review Agent",
+  instructions: PR_REVIEW_INSTRUCTIONS,
+  model: "gpt-4o",
+  outputType: PrReviewOutputSchema,
+});
 
 export async function runPrReviewAgent(packet: WorkPacket): Promise<PrReviewOutput> {
   if (!packet.pr) throw new Error("No PR context in work packet");
@@ -31,7 +34,11 @@ export async function runPrReviewAgent(packet: WorkPacket): Promise<PrReviewOutp
 
   const patchSample = pr.changedFiles
     .slice(0, 5)
-    .map((f) => f.patch ? `### ${f.filename}\n\`\`\`diff\n${f.patch.slice(0, 800)}\n\`\`\`` : `### ${f.filename}\n(no patch)`)
+    .map((f) =>
+      f.patch
+        ? `### ${f.filename}\n\`\`\`diff\n${f.patch.slice(0, 800)}\n\`\`\``
+        : `### ${f.filename}\n(no patch)`
+    )
     .join("\n\n");
 
   const userMessage = `
@@ -52,23 +59,11 @@ ${patchSample}
 - require_tests_for: ${config.review.require_tests_for.join(", ")}
 - docs_paths: ${config.review.docs_paths.join(", ")}
 - risky_paths: ${config.review.risky_paths.join(", ")}
-
-Produce a PR review output JSON.
 `.trim();
 
-  const client = new OpenAI();
-  const response = await client.responses.parse({
-    model: "gpt-4o",
-    input: [
-      { role: "system", content: PR_REVIEW_INSTRUCTIONS },
-      { role: "user", content: userMessage },
-    ],
-    text: {
-      format: zodTextFormat(PrReviewOutputSchema, "pr_review_output"),
-    },
-  });
+  const result = await run(prReviewAgent, userMessage);
 
-  const parsed = response.output_parsed;
-  if (!parsed) throw new Error("PR Review agent returned no output");
-  return parsed;
+  const output = result.finalOutput as PrReviewOutput;
+  if (!output) throw new Error("PR Review agent returned no output");
+  return output;
 }
