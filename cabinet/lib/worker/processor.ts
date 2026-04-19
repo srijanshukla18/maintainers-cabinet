@@ -79,6 +79,8 @@ export async function processEvent(githubEventId: string): Promise<void> {
       event.action === "created"
     ) {
       await handleSlashCommand(event.id, payload, basePacket, octokit, { id: repo.id, owner: repo.owner, name: repo.name });
+      // Mark the initial run as done — handleSlashCommand creates its own run for actual slash commands
+      await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Routed to slash command handler." } });
     } else if (
       (event.eventType === "pull_request" && event.action === "opened") ||
       (event.eventType === "pull_request" && event.action === "synchronize")
@@ -166,6 +168,7 @@ async function handleSlashCommand(
   const run = await prisma.run.create({
     data: {
       repoId: repo.id,
+      githubEventId: eventId,
       runType: "slash_command",
       status: "running",
       triggerSource: "slash_command",

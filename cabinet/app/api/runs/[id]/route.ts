@@ -21,5 +21,15 @@ export async function GET(
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  return NextResponse.json(run);
+  // Exclude BigInt fields from repo to avoid JSON.stringify crash
+  const { repo, ...rest } = run;
+  return NextResponse.json({
+    ...rest,
+    repo: {
+      id: repo.id,
+      owner: repo.owner,
+      name: repo.name,
+      defaultBranch: repo.defaultBranch,
+    },
+  });
 }

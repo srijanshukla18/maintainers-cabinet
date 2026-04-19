@@ -1,3 +1,4 @@
+import { withTrace } from "@openai/agents";
 import { prisma } from "../db/client";
 import { getInstallationClient, addLabels, postIssueComment, postPullRequestComment, createCheckRun, updateCheckRun, ensureLabelsExist } from "../github/client";
 import { runTriageAgent } from "./triage";
@@ -62,6 +63,16 @@ function dedup(labels: string[]): string[] {
 // ── MANAGER ───────────────────────────────────────────────────────────────────
 
 export async function runManager(packet: WorkPacket): Promise<void> {
+  const traceName = packet.issue
+    ? `issue_triage:${packet.repoOwner}/${packet.repoName}#${packet.issue.number}`
+    : packet.pr
+    ? `pr_review:${packet.repoOwner}/${packet.repoName}#${packet.pr.number}`
+    : `cabinet_run:${packet.runId}`;
+
+  return withTrace(traceName, () => _runManager(packet));
+}
+
+async function _runManager(packet: WorkPacket): Promise<void> {
   const { runId, repoOwner, repoName, installationId, config } = packet;
 
   const octokit = await getInstallationClient(installationId);
