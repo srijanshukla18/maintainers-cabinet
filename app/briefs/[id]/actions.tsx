@@ -30,15 +30,15 @@ export default function BriefActions({ briefId, alreadySent }: { briefId: string
       <button
         onClick={send}
         disabled={sending || sent}
-        className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-colors ${
+        className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors ${
           sent
-            ? "bg-green-900/30 text-green-400 border border-green-800 cursor-default"
-            : "bg-indigo-600 hover:bg-indigo-500 text-white"
+            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+            : "bg-indigo-600 hover:bg-indigo-700 text-white"
         } ${sending ? "opacity-50" : ""}`}
       >
-        {sent ? "✓ Sent to inbox" : sending ? "Sending..." : "Send to my inbox"}
+        {sent ? "Sent to inbox" : sending ? "Sending..." : "Send to my inbox"}
       </button>
-      {error && <span className="text-sm text-red-400">{error}</span>}
+      {error && <span className="text-sm text-red-600 font-medium">{error}</span>}
     </div>
   );
 }

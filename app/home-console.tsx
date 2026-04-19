@@ -29,17 +29,15 @@ export function HomeConsole() {
   }
 
   return (
-    <div className="rounded-2xl border border-cyan-900/40 bg-slate-950/80 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_0_80px_rgba(14,165,233,0.08)]">
-      <div className="border-b border-cyan-950/60 px-5 py-3 flex items-center justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-400 font-mono">Mission Console</div>
-          <div className="text-sm text-slate-400">Paste any public GitHub repo to generate a brief.</div>
-        </div>
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-100 px-5 py-3">
+        <div className="text-xs uppercase tracking-widest text-indigo-600 font-semibold">Mission Console</div>
+        <div className="text-sm text-gray-500">Paste any public GitHub repo to generate a brief.</div>
       </div>
 
       <div className="p-5 space-y-4">
         <div>
-          <label className="text-[11px] uppercase tracking-[0.22em] text-slate-500 font-mono block mb-2">
+          <label className="text-xs uppercase tracking-wider text-gray-400 font-semibold block mb-2">
             Target Repo
           </label>
           <div className="flex gap-3">
@@ -47,14 +45,14 @@ export function HomeConsole() {
               value={repoInput}
               onChange={(e) => setRepoInput(e.target.value)}
               placeholder="hashicorp/vault-csi-provider"
-              className="flex-1 bg-slate-950/90 border border-slate-800 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-cyan-500"
+              className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-gray-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
               disabled={loading}
               onKeyDown={(e) => { if (e.key === "Enter" && repoInput.trim()) generate(); }}
             />
             <button
               onClick={generate}
               disabled={loading || !repoInput.trim()}
-              className="bg-cyan-500/90 hover:bg-cyan-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-semibold px-5 py-3 rounded-xl transition-colors"
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
             >
               {loading ? "Running..." : "Run Agents"}
             </button>
@@ -62,15 +60,15 @@ export function HomeConsole() {
         </div>
 
         {error && (
-          <div className="text-sm text-red-300 bg-red-950/30 border border-red-900 rounded-xl p-3">
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
             {error}
           </div>
         )}
 
         {loading && (
-          <div className="rounded-xl border border-cyan-950/60 bg-slate-900/40 p-4 text-sm text-slate-300 flex items-center gap-4">
-            <div className="w-4 h-4 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin"></div>
-            <div className="font-mono text-xs text-cyan-300 animate-pulse">Orchestrating agents across queue...</div>
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 flex items-center gap-4">
+            <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"></div>
+            <div className="font-mono text-sm text-indigo-700 font-medium">Orchestrating agents across queue...</div>
           </div>
         )}
       </div>
