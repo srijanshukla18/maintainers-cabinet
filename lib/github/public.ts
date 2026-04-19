@@ -199,8 +199,36 @@ export function listOpenPRs(owner: string, repo: string, limit = 30): PublicPR[]
 
 export function getPRFiles(owner: string, repo: string, number: number): Array<{ filename: string; status: string; patch?: string }> {
   try {
-    const raw = gh(["pr", "diff", "--name-only", String(number), "-R", `${owner}/${repo}`]);
-    return raw.split("\n").filter(Boolean).map((filename) => ({ filename, status: "modified" }));
+    const raw = gh(["pr", "diff", String(number), "-R", `${owner}/${repo}`]);
+    const files: Array<{ filename: string; status: string; patch?: string }> = [];
+    let currentFilename = "";
+    let currentPatch: string[] = [];
+    let collecting = false;
+
+    for (const line of raw.split("\n")) {
+      if (line.startsWith("diff --git a/")) {
+        if (currentFilename) {
+          files.push({ filename: currentFilename, status: "modified", patch: currentPatch.join("\n").slice(0, 800) || undefined });
+        }
+        const match = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
+        currentFilename = match ? match[2] : line.replace(/^diff --git a\//, "").replace(/ b\/.*$/, "");
+        currentPatch = [];
+        collecting = true;
+      } else if (collecting) {
+        currentPatch.push(line);
+      }
+    }
+    if (currentFilename) {
+      files.push({ filename: currentFilename, status: "modified", patch: currentPatch.join("\n").slice(0, 800) || undefined });
+    }
+
+    // Fallback: if diff parsing yielded nothing, try name-only
+    if (files.length === 0) {
+      const nameOnly = gh(["pr", "diff", "--name-only", String(number), "-R", `${owner}/${repo}`]);
+      return nameOnly.split("\n").filter(Boolean).map((filename) => ({ filename, status: "modified" }));
+    }
+
+    return files.slice(0, 10);
   } catch {
     return [];
   }

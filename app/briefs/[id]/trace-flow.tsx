@@ -102,7 +102,7 @@ export default function TraceFlow({ steps }: { steps: TraceStep[] }) {
                           rounded-lg border px-3 py-2.5 text-left transition-all cursor-pointer
                           ${isSelected
                             ? `${meta.bg} ${meta.border} ring-2 ring-indigo-400 shadow-sm`
-                            : `bg-white border-gray-200 hover:${meta.border} hover:shadow-sm`
+                            : `bg-white border-gray-200 hover:shadow-sm hover:border-gray-300`
                           }
                         `}
                         style={{ minWidth: group.parallel && group.steps.length > 4 ? "130px" : "170px" }}

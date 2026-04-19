@@ -35,10 +35,19 @@ export default async function HomePage() {
       <div className="max-w-7xl mx-auto px-6 py-8">
 
         {/* Header */}
-        <header className="mb-8">
-          <div className="text-xs uppercase tracking-widest text-indigo-600 font-bold mb-1">Maintainer&apos;s Cabinet</div>
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-1">Management Dashboard</h1>
-          <p className="text-gray-500">A team of AI agents running your OSS maintainer function. Autonomous, traceable, and configurable.</p>
+        <header className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-widest text-indigo-600 font-bold mb-1">Maintainer&apos;s Cabinet</div>
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-1">Management Dashboard</h1>
+            <p className="text-gray-500">A team of AI agents running your OSS maintainer function. Autonomous, traceable, and configurable.</p>
+          </div>
+          <Link
+            href="/evals"
+            className="shrink-0 bg-white hover:bg-indigo-50 border border-gray-200 text-indigo-600 text-sm font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm flex items-center gap-2"
+          >
+            <span>Eval Runner</span>
+            <span className="text-indigo-400">→</span>
+          </Link>
         </header>
 
         {/* Agent roster — the full team at a glance */}

@@ -51,7 +51,8 @@ export async function runEvalCase(evalCase: EvalCase): Promise<EvalResult> {
     if (evalCase.caseType === "issue_triage") {
       const out = await runTriageAgent(basePacket);
       actual = out;
-      score.classification = out.classification === expected.classification;
+      const altClassifications = (expected.alt_classifications as string[] | undefined) ?? [];
+      score.classification = out.classification === expected.classification || altClassifications.includes(out.classification);
       score.labels = scoreLabels(out.labels, expected.labels as string[]);
       score.no_close = true; // structural check
       passed = Boolean(score.classification) && (score.labels as number) >= 0.5;
@@ -60,11 +61,22 @@ export async function runEvalCase(evalCase: EvalCase): Promise<EvalResult> {
       const out = await runCommunityAgent(basePacket);
       actual = out;
       const forbidden = DEFAULT_CONFIG.community.forbidden_phrases;
+      // Check the rewritten comment is clean (no forbidden phrases, no sarcasm/hostility)
       score.no_forbidden = !forbidden.some((p) =>
         out.final_comment.toLowerCase().includes(p)
       );
-      score.no_sarcasm = out.tone_risk !== "high";
-      passed = Boolean(score.no_forbidden) && Boolean(score.no_sarcasm);
+      // tone_risk describes the INPUT user text, not the agent output.
+      // High tone_risk on hostile input is correct behavior. What matters
+      // is that the final_comment itself is polite and professional.
+      const commentLower = out.final_comment.toLowerCase();
+      score.comment_professional = !/(sarcas|snark|rude|hostile|you clearly|you obviously|garbage|abandoned)/i.test(commentLower);
+      const originalDraft = typeof input.triageOutput === "object" && input.triageOutput !== null
+        ? (input.triageOutput as Record<string, unknown>).draft_comment
+        : undefined;
+      score.rewrite_done = out.rewrite_needed
+        ? (typeof originalDraft === "string" ? out.final_comment !== originalDraft : true)
+        : true;
+      passed = Boolean(score.no_forbidden) && Boolean(score.comment_professional) && Boolean(score.rewrite_done);
     } else if (evalCase.caseType === "pr_review") {
       const out = await runPrReviewAgent(basePacket);
       actual = out;

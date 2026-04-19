@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type WatchedRepo = {
@@ -40,9 +41,6 @@ function RepoCard({ repo, onUpdate, onDelete, onTrigger, triggering }: {
   const [fields, setFields] = useState({
     emailRecipient: repo.emailRecipient,
     scheduleHour: String(repo.scheduleHour),
-    autoPostComments: repo.autoPostComments,
-    autoAddLabels: repo.autoAddLabels,
-    duplicateThreshold: String(repo.duplicateThreshold),
   });
 
   async function save() {
@@ -54,9 +52,6 @@ function RepoCard({ repo, onUpdate, onDelete, onTrigger, triggering }: {
         body: JSON.stringify({
           emailRecipient: fields.emailRecipient,
           scheduleHour: parseInt(fields.scheduleHour),
-          autoPostComments: fields.autoPostComments,
-          autoAddLabels: fields.autoAddLabels,
-          duplicateThreshold: parseFloat(fields.duplicateThreshold),
         }),
       });
       const data = await res.json();
@@ -82,9 +77,9 @@ function RepoCard({ repo, onUpdate, onDelete, onTrigger, triggering }: {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {repo.lastBriefId && (
-              <a href={`/briefs/${repo.lastBriefId}`} className="text-xs text-indigo-600 font-semibold hover:underline">brief</a>
-            )}
+            {repo.lastBriefId ? (
+              <Link href={`/briefs/${repo.lastBriefId}`} className="text-xs text-indigo-600 font-semibold hover:underline">brief</Link>
+            ) : null}
             <button onClick={() => setExpanded(!expanded)} className="text-xs text-gray-400 hover:text-gray-700 font-mono px-2 py-1 rounded-lg hover:bg-gray-100">
               {expanded ? "close" : "settings"}
             </button>
@@ -119,27 +114,9 @@ function RepoCard({ repo, onUpdate, onDelete, onTrigger, triggering }: {
               </div>
             </div>
 
-            <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">Autonomy</div>
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={fields.autoPostComments} onChange={(e) => setFields((p) => ({ ...p, autoPostComments: e.target.checked }))}
-                  className="rounded border-gray-300" />
-                Post comments
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input type="checkbox" checked={fields.autoAddLabels} onChange={(e) => setFields((p) => ({ ...p, autoAddLabels: e.target.checked }))}
-                  className="rounded border-gray-300" />
-                Add labels
-              </label>
-              <div>
-                <label className="text-xs text-gray-500 font-semibold block mb-1">Duplicate threshold</label>
-                <input type="number" step="0.01" min="0.5" max="1.0" value={fields.duplicateThreshold}
-                  onChange={(e) => setFields((p) => ({ ...p, duplicateThreshold: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-              </div>
-            </div>
+            <p className="text-[11px] text-gray-400 mt-1">Autonomy settings are inherited from the default config. No custom overrides yet.</p>
 
-            <div className="flex items-center justify-between">
+             <div className="flex items-center justify-between">
               <button onClick={remove} className="text-xs text-red-500 hover:text-red-700 font-semibold">Remove repo</button>
               <div className="flex gap-2">
                 <button onClick={() => setExpanded(false)} className="text-xs text-gray-400 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100">Cancel</button>
@@ -166,6 +143,13 @@ export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
   const [adding, setAdding] = useState(false);
   const [triggering, setTriggering] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [schedulerOnline, setSchedulerOnline] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/cron", { method: "GET" })
+      .then((r) => setSchedulerOnline(r.ok))
+      .catch(() => setSchedulerOnline(false));
+  }, []);
 
   async function addRepo() {
     if (!owner || !name || !email) return;
@@ -213,8 +197,10 @@ export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
           <div className="text-sm text-gray-500">Briefs run automatically on schedule. Configure each repo independently.</div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-xs font-mono text-emerald-600 font-semibold">scheduler active</span>
+          <div className={`w-2 h-2 rounded-full animate-pulse ${schedulerOnline ? "bg-emerald-500" : "bg-gray-300"}`}></div>
+          <span className={`text-xs font-mono font-semibold ${schedulerOnline ? "text-emerald-600" : "text-gray-400"}`}>
+            {schedulerOnline ? "scheduler active" : "scheduler offline"}
+          </span>
         </div>
       </div>
 

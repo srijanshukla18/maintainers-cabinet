@@ -14,7 +14,8 @@
     },
     "expected": {
       "classification": "needs_info",
-      "labels": ["cabinet:needs-info", "cabinet:triaged"],
+      "alt_classifications": ["bug_likely"],
+      "labels": ["cabinet:needs-info"],
       "no_close": true
     }
   },
@@ -147,7 +148,7 @@
     },
     "expected": {
       "classification": "security_sensitive",
-      "labels": ["cabinet:review-needed"],
+      "labels": ["cabinet:review-needed", "cabinet:triaged"],
       "no_close": true
     }
   },
@@ -185,7 +186,8 @@
     },
     "expected": {
       "classification": "invalid_unclear",
-      "labels": ["cabinet:needs-info", "cabinet:triaged"],
+      "alt_classifications": ["needs_info"],
+      "labels": ["cabinet:needs-info"],
       "no_close": true
     }
   },

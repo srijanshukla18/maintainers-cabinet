@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 export function HomeConsole() {
   const router = useRouter();
   const [repoInput, setRepoInput] = useState("");
+  const [forceRefresh, setForceRefresh] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +18,7 @@ export function HomeConsole() {
       const res = await fetch("/api/briefs/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo: repoInput, forceRefresh: false }),
+        body: JSON.stringify({ repo: repoInput, forceRefresh }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -58,6 +59,17 @@ export function HomeConsole() {
             </button>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={forceRefresh}
+            onChange={(e) => setForceRefresh(e.target.checked)}
+            disabled={loading}
+            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          Force refresh (ignore 6-hour cache)
+        </label>
 
         {error && (
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">

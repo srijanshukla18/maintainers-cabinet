@@ -24,116 +24,126 @@ type RunResponse = {
 type HistoryRun = { runAt: string; passed: number; total: number; rate: number };
 
 const TYPE_COLOR: Record<string, string> = {
-  issue_triage: "bg-blue-900 text-blue-300",
-  pr_review: "bg-purple-900 text-purple-300",
-  release: "bg-yellow-900 text-yellow-300",
-  community: "bg-pink-900 text-pink-300",
+  issue_triage: "bg-violet-50 text-violet-700 border-violet-200",
+  pr_review:    "bg-amber-50 text-amber-700 border-amber-200",
+  release:      "bg-orange-50 text-orange-700 border-orange-200",
+  community:    "bg-pink-50 text-pink-700 border-pink-200",
 };
 
 function ScoreChart({ runs }: { runs: HistoryRun[] }) {
   if (runs.length < 2) {
     return (
-      <div className="flex items-center justify-center h-24 text-gray-600 text-sm">
+      <div className="flex items-center justify-center h-40 text-gray-400 text-sm font-medium bg-gray-50/50 rounded-xl border border-gray-100 border-dashed">
         Run evals at least twice to see trend
       </div>
     );
   }
 
-  const W = 600, H = 120, PAD = 24;
-  const maxRate = 100;
-  const xs = runs.map((_, i) => PAD + (i / (runs.length - 1)) * (W - PAD * 2));
-  const ys = runs.map((r) => PAD + (1 - r.rate / maxRate) * (H - PAD * 2));
+  const W = 800, H = 200, PAD_X = 48, PAD_Y = 24;
+  const xs = runs.map((_, i) => PAD_X + (i / (runs.length - 1)) * (W - PAD_X * 2));
+  const ys = runs.map((r) => PAD_Y + (1 - r.rate / 100) * (H - PAD_Y * 2));
   const line = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x},${ys[i]}`).join(" ");
-  const area = `${line} L${xs.at(-1)},${H - PAD} L${PAD},${H - PAD} Z`;
+  const area = `${line} L${xs.at(-1)},${H - PAD_Y} L${PAD_X},${H - PAD_Y} Z`;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }}>
-      {/* Grid lines */}
-      {[0, 50, 100].map((pct) => {
-        const y = PAD + (1 - pct / 100) * (H - PAD * 2);
-        return (
-          <g key={pct}>
-            <line x1={PAD} y1={y} x2={W - PAD} y2={y} stroke="#374151" strokeWidth="1" strokeDasharray="4 3" />
-            <text x={PAD - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#6b7280">{pct}%</text>
+    <div className="py-2">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible font-sans">
+        <defs>
+          <linearGradient id="eval-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[0, 50, 100].map((pct) => {
+          const y = PAD_Y + (1 - pct / 100) * (H - PAD_Y * 2);
+          return (
+            <g key={pct}>
+              <line x1={PAD_X} y1={y} x2={W - PAD_X} y2={y} stroke="#f3f4f6" strokeWidth="1.5" strokeDasharray="4 4" />
+              <text x={PAD_X - 12} y={y + 4} textAnchor="end" fontSize="11" fill="#9ca3af" fontWeight="500">{pct}%</text>
+            </g>
+          );
+        })}
+        <path d={area} fill="url(#eval-grad)" />
+        <path d={line} fill="none" stroke="#6366f1" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        {runs.map((r, i) => (
+          <g key={i}>
+            <circle
+              cx={xs[i]} cy={ys[i]} r="5"
+              fill={r.rate >= 80 ? "#10b981" : r.rate >= 60 ? "#f59e0b" : "#ef4444"}
+              stroke="white" strokeWidth="2.5"
+            />
+            <title>{r.rate}% ({r.passed}/{r.total})</title>
           </g>
-        );
-      })}
-      {/* Area fill */}
-      <path d={area} fill="url(#grad)" opacity="0.3" />
-      {/* Line */}
-      <path d={line} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" />
-      {/* Dots + tooltips */}
-      {runs.map((r, i) => (
-        <g key={i}>
-          <circle cx={xs[i]} cy={ys[i]} r="4" fill={r.rate >= 80 ? "#34d399" : r.rate >= 60 ? "#fbbf24" : "#f87171"} />
-          <title>{new Date(r.runAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} — {r.rate}% ({r.passed}/{r.total})</title>
-        </g>
-      ))}
-      <defs>
-        <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-    </svg>
+        ))}
+      </svg>
+    </div>
   );
 }
 
 function EvalCard({ r }: { r: EvalResult }) {
   const [open, setOpen] = useState(false);
+  const passColor = r.passed
+    ? "border-green-200 bg-green-50"
+    : "border-red-200 bg-red-50";
+
   return (
-    <div className={`rounded-lg border ${r.passed ? "border-green-900 bg-green-950/30" : "border-red-900 bg-red-950/30"}`}>
+    <div className={`rounded-xl border ${passColor}`}>
       <button
-        className="w-full text-left p-3 flex items-center justify-between gap-2"
+        className="w-full text-left px-4 py-3 flex items-center justify-between gap-3"
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <span className="font-mono text-sm text-white">{r.name}</span>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_COLOR[r.caseType] ?? "bg-gray-700 text-gray-300"}`}>{r.caseType}</span>
+          <span className="font-mono text-sm text-gray-900 truncate">{r.name}</span>
+          <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-semibold ${TYPE_COLOR[r.caseType] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
+            {r.caseType}
+          </span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="hidden sm:flex gap-3 flex-wrap justify-end">
             {Object.entries(r.score).map(([k, v]) => (
-              <span key={k} className="text-xs text-gray-400 font-mono">
-                {k}: {typeof v === "boolean" ? (v ? "✓" : "✗") : typeof v === "number" ? v.toFixed(2) : String(v)}
+              <span key={k} className="text-xs text-gray-500 font-mono">
+                {k}:{" "}
+                <span className={typeof v === "boolean" ? (v ? "text-green-600" : "text-red-500") : "text-gray-700"}>
+                  {typeof v === "boolean" ? (v ? "✓" : "✗") : typeof v === "number" ? v.toFixed(2) : String(v)}
+                </span>
               </span>
             ))}
           </div>
-          <span className={`text-xs font-semibold w-8 text-right ${r.passed ? "text-green-400" : "text-red-400"}`}>
+          <span className={`text-xs font-bold w-8 text-right ${r.passed ? "text-green-600" : "text-red-500"}`}>
             {r.passed ? "PASS" : "FAIL"}
           </span>
-          <span className="text-gray-500 text-xs">{open ? "▲" : "▼"}</span>
+          <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
         </div>
       </button>
 
       {open && (
-        <div className="border-t border-gray-800 p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="border-t border-gray-200 p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-white rounded-b-xl">
           <DetailPane title="Input" data={r.input} />
-          <DetailPane title="Expected" data={r.expected} accent="text-emerald-400" />
-          <DetailPane title="Actual (agent output)" data={r.actual} accent={r.passed ? "text-emerald-400" : "text-red-400"} />
+          <DetailPane title="Expected" data={r.expected} accent="text-emerald-600" />
+          <DetailPane title="Actual" data={r.actual} accent={r.passed ? "text-emerald-600" : "text-red-500"} />
         </div>
       )}
     </div>
   );
 }
 
-function DetailPane({ title, data, accent = "text-gray-400" }: { title: string; data: unknown; accent?: string }) {
+function DetailPane({ title, data, accent = "text-gray-500" }: { title: string; data: unknown; accent?: string }) {
   const entries = typeof data === "object" && data !== null && !Array.isArray(data)
     ? Object.entries(data as Record<string, unknown>)
     : null;
   return (
     <div>
       <div className={`text-[10px] uppercase tracking-wider font-bold mb-2 ${accent}`}>{title}</div>
-      <div className="bg-gray-950 rounded-lg p-3 space-y-2 max-h-72 overflow-y-auto">
+      <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-2 max-h-72 overflow-y-auto">
         {entries ? entries.map(([k, v]) => (
           <div key={k}>
-            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-0.5">{k}</div>
-            <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words leading-relaxed font-mono">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-0.5">{k}</div>
+            <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words leading-relaxed font-mono">
               {typeof v === "string" ? v : JSON.stringify(v, null, 2)}
             </pre>
           </div>
         )) : (
-          <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono">{JSON.stringify(data, null, 2)}</pre>
+          <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words font-mono">{JSON.stringify(data, null, 2)}</pre>
         )}
       </div>
     </div>
@@ -146,6 +156,7 @@ export default function EvalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<HistoryRun[]>([]);
+  const [lastRunLabel, setLastRunLabel] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/evals/history")
@@ -181,12 +192,11 @@ export default function EvalsPage() {
           .sort()
           .at(-1);
 
-        setResult({
-          results,
-          passed: results.filter((r) => r.passed).length,
-          total: results.length,
-          lastRunAt,
-        });
+        setResult({ results, passed: results.filter((r) => r.passed).length, total: results.length, lastRunAt });
+        if (lastRunAt) {
+          const d = new Date(lastRunAt);
+          setLastRunLabel(`${d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -201,6 +211,8 @@ export default function EvalsPage() {
       const data = await res.json();
       const runAt = new Date().toISOString();
       setResult({ ...data, lastRunAt: runAt });
+      const d = new Date(runAt);
+      setLastRunLabel(d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
       setHistory((h) => [...h, { runAt, passed: data.passed, total: data.total, rate: Math.round((data.passed / data.total) * 100) }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -218,75 +230,80 @@ export default function EvalsPage() {
       }, {})
     : null;
 
+  const passRate = result ? Math.round((result.passed / result.total) * 100) : null;
+  const rateColor = passRate === null ? "" : passRate === 100 ? "text-green-600" : passRate >= 80 ? "text-amber-600" : "text-red-500";
+
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100 p-8">
-      <div className="max-w-4xl mx-auto">
+    <main className="min-h-screen bg-gray-50 text-gray-900">
+      <div className="max-w-5xl mx-auto px-6 py-8">
+
+        {/* Header */}
         <div className="mb-2">
-          <Link href="/" className="text-sm text-gray-500 hover:text-gray-300">← Home</Link>
+          <Link href="/" className="text-sm text-gray-400 hover:text-gray-600">← Home</Link>
         </div>
-        <div className="mb-8 flex items-center justify-between">
+        <header className="mb-8 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Eval Runner</h1>
-            <p className="text-gray-400 text-sm mt-1">20 eval cases · live agents</p>
-            {result?.lastRunAt && (
-              <p className="text-gray-500 text-xs mt-1 font-mono">
-                Last run: {new Date(result.lastRunAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </p>
+            <div className="text-xs uppercase tracking-widest text-indigo-600 font-bold mb-1">Maintainer&apos;s Cabinet</div>
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-1">Eval Runner</h1>
+            <p className="text-gray-500">20 eval cases · live agents · results stored in DB</p>
+            {lastRunLabel && (
+              <p className="text-gray-400 text-xs mt-1 font-mono">Last run: {lastRunLabel}</p>
             )}
           </div>
           <button
             onClick={runEvals}
             disabled={running || loading}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            className="shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
           >
-            {running ? "Running..." : result ? "Re-run Evals" : "Run Evals"}
+            {running ? "Running…" : result ? "Re-run Evals" : "Run Evals"}
           </button>
-        </div>
+        </header>
 
         {error && (
-          <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-6 text-red-300 text-sm">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-red-600 text-sm">
             {error}
           </div>
         )}
 
+        {/* Pass rate chart */}
         {history.length > 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 mb-6">
-            <div className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-3">Pass rate over time</div>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
+            <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">Pass Rate Over Time</div>
             <ScoreChart runs={history} />
-            <div className="flex justify-between text-[10px] text-gray-600 font-mono mt-1 px-1">
-              <span>{new Date(history[0].runAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+            <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-2 px-6 sm:px-10">
+              <span suppressHydrationWarning>{new Date(history[0].runAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
               <span>{history.length} run{history.length !== 1 ? "s" : ""}</span>
-              <span>{new Date(history.at(-1)!.runAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+              <span suppressHydrationWarning>{new Date(history.at(-1)!.runAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
             </div>
           </div>
         )}
 
+        {/* Summary breakdown */}
         {byType && result && (
           <>
-            {/* Summary */}
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-5 mb-6">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-white">
-                  {result.passed}/{result.total} passed
-                </h2>
-                <span className={`text-sm font-medium ${result.passed === result.total ? "text-green-400" : result.passed >= result.total * 0.8 ? "text-yellow-400" : "text-red-400"}`}>
-                  {Math.round((result.passed / result.total) * 100)}%
-                </span>
+                <h2 className="text-2xl font-bold text-gray-900">{result.passed}/{result.total} passed</h2>
+                <span className={`text-xl font-bold ${rateColor}`}>{passRate}%</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {Object.entries(byType).map(([type, { passed, total }]) => (
-                  <div key={type} className="flex items-center justify-between bg-gray-800 rounded px-3 py-2">
-                    <span className={`text-xs px-2 py-0.5 rounded font-mono ${TYPE_COLOR[type] ?? "bg-gray-700 text-gray-300"}`}>
+                  <div key={type} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5">
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full border font-semibold ${TYPE_COLOR[type] ?? "bg-gray-100 text-gray-500 border-gray-200"}`}>
                       {type}
                     </span>
-                    <span className="text-sm text-gray-300">{passed}/{total}</span>
+                    <span className={`text-sm font-semibold ${passed === total ? "text-green-600" : "text-red-500"}`}>
+                      {passed}/{total}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Individual results */}
-            <h2 className="text-base font-semibold text-gray-200 mb-3">Case Results <span className="text-gray-500 text-sm font-normal">— click any row to inspect</span></h2>
+            {/* Case list */}
+            <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">
+              Case Results <span className="normal-case font-normal text-gray-400">— click any row to inspect</span>
+            </div>
             <div className="space-y-2">
               {result.results.map((r) => (
                 <EvalCard key={r.evalCaseId} r={r} />
@@ -296,16 +313,21 @@ export default function EvalsPage() {
         )}
 
         {!result && !running && (
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center">
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
             {loading
-              ? <p className="text-gray-500">Loading last run...</p>
+              ? <p className="text-gray-400">Loading last run…</p>
               : <>
-                  <p className="text-gray-400">No eval results yet.</p>
-                  <p className="text-gray-500 text-sm mt-1">Click "Run Evals" to execute all 20 cases against live agents.</p>
+                  <p className="text-gray-600 font-medium">No eval results yet.</p>
+                  <p className="text-gray-400 text-sm mt-1">Click &quot;Run Evals&quot; to execute all 20 cases against live agents.</p>
                 </>
             }
           </div>
         )}
+
+        <footer className="border-t border-gray-200 pt-5 mt-8 flex items-center justify-between text-xs text-gray-400 font-mono">
+          <Link href="/" className="hover:text-gray-600">← home</Link>
+          <div>8 agents · autonomous + on-demand · trace-first · agentmail</div>
+        </footer>
       </div>
     </main>
   );

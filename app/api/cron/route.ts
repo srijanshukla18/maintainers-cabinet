@@ -10,6 +10,10 @@ import { runNow } from "@/lib/cron/scheduler";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+export async function GET() {
+  return NextResponse.json({ status: "ok" });
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const { owner, name, emailRecipient } = body;

@@ -46,6 +46,8 @@ Your job is to classify incoming GitHub issues and produce a structured triage o
 - If a similar issue exists with similarity above threshold, include it in similar_issues.
 - draft_comment must be polite, specific, and actionable. Never use the forbidden phrases: "just", "obviously", "works for me".
 - labels MUST use the exact cabinet label names with the "cabinet:" prefix. Valid labels are ONLY: cabinet:triaged, cabinet:needs-info, cabinet:possible-duplicate, cabinet:support, cabinet:bug-likely, cabinet:docs-needed, cabinet:release-note-needed, cabinet:review-needed, cabinet:community-risk. Do not invent other label names.
+- If classification is security_sensitive, ALWAYS include cabinet:review-needed in labels.
+- If required fields are missing and the issue lacks enough detail to reproduce, classify as needs_info rather than bug_likely — even if the user describes a crash.
 `.trim();
 
 const triageAgent = new Agent({

@@ -17,6 +17,7 @@ import {
   listOpenIssues,
   listOpenPRs,
   listRecentCommits,
+  getPRFiles,
   type PublicIssue,
   type PublicPR,
   type PublicRepo,
@@ -350,6 +351,11 @@ async function triageOne(briefId: string, issue: PublicIssue) {
 }
 
 async function reviewOne(briefId: string, owner: string, repo: string, pr: PublicPR) {
+  let changedFiles = getPRFiles(owner, repo, pr.number);
+  if (changedFiles.length === 0) {
+    changedFiles = [{ filename: `(${pr.changedFiles} files changed)`, status: "modified" }];
+  }
+
   const packet: WorkPacket = {
     runId: `brief_review_${pr.number}`,
     repoOwner: owner,
@@ -362,7 +368,7 @@ async function reviewOne(briefId: string, owner: string, repo: string, pr: Publi
       body: pr.body,
       author: pr.author,
       headSha: "",
-      changedFiles: [{ filename: `(${pr.changedFiles} files changed)`, status: "modified" }],
+      changedFiles,
       ciStatus: pr.statusCheckRollup ?? undefined,
     },
   };
