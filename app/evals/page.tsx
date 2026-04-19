@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 type EvalResult = {
@@ -18,6 +18,7 @@ type RunResponse = {
   results: EvalResult[];
   passed: number;
   total: number;
+  lastRunAt?: string;
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -92,16 +93,54 @@ export default function EvalsPage() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<RunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/evals")
+      .then((r) => r.json())
+      .then((cases: Array<{
+        id: string; name: string; caseType: string;
+        inputJson: unknown; expectedJson: unknown;
+        evalResults: Array<{ actualJson: unknown; scoreJson: Record<string, unknown>; passed: boolean; createdAt: string }>;
+      }>) => {
+        const withResults = cases.filter((c) => c.evalResults.length > 0);
+        if (withResults.length === 0) return;
+
+        const results: EvalResult[] = withResults.map((c) => ({
+          evalCaseId: c.id,
+          name: c.name,
+          caseType: c.caseType,
+          passed: c.evalResults[0].passed ?? false,
+          score: c.evalResults[0].scoreJson ?? {},
+          actual: c.evalResults[0].actualJson,
+          input: c.inputJson,
+          expected: c.expectedJson,
+        }));
+
+        const lastRunAt = withResults
+          .map((c) => c.evalResults[0].createdAt)
+          .sort()
+          .at(-1);
+
+        setResult({
+          results,
+          passed: results.filter((r) => r.passed).length,
+          total: results.length,
+          lastRunAt,
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   async function runEvals() {
     setRunning(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch("/api/evals/run", { method: "POST" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setResult(data);
+      setResult({ ...data, lastRunAt: new Date().toISOString() });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -127,14 +166,19 @@ export default function EvalsPage() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">Eval Runner</h1>
-            <p className="text-gray-400 text-sm mt-1">Runs all 20 eval cases against live agents.</p>
+            <p className="text-gray-400 text-sm mt-1">20 eval cases · live agents</p>
+            {result?.lastRunAt && (
+              <p className="text-gray-500 text-xs mt-1 font-mono">
+                Last run: {new Date(result.lastRunAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </p>
+            )}
           </div>
           <button
             onClick={runEvals}
-            disabled={running}
+            disabled={running || loading}
             className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
-            {running ? "Running..." : "Run Evals"}
+            {running ? "Running..." : result ? "Re-run Evals" : "Run Evals"}
           </button>
         </div>
 
@@ -180,10 +224,13 @@ export default function EvalsPage() {
 
         {!result && !running && (
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center">
-            <p className="text-gray-400">Click "Run Evals" to execute all eval cases.</p>
-            <p className="text-gray-500 text-sm mt-1">
-              Requires OPENAI_API_KEY and seeded eval cases (pnpm tsx scripts/seed-evals.ts).
-            </p>
+            {loading
+              ? <p className="text-gray-500">Loading last run...</p>
+              : <>
+                  <p className="text-gray-400">No eval results yet.</p>
+                  <p className="text-gray-500 text-sm mt-1">Click "Run Evals" to execute all 20 cases against live agents.</p>
+                </>
+            }
           </div>
         )}
       </div>
