@@ -10,6 +10,8 @@ type EvalResult = {
   passed: boolean;
   score: Record<string, unknown>;
   actual: unknown;
+  input: unknown;
+  expected: unknown;
 };
 
 type RunResponse = {
@@ -24,6 +26,67 @@ const TYPE_COLOR: Record<string, string> = {
   release: "bg-yellow-900 text-yellow-300",
   community: "bg-pink-900 text-pink-300",
 };
+
+function EvalCard({ r }: { r: EvalResult }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`rounded-lg border ${r.passed ? "border-green-900 bg-green-950/30" : "border-red-900 bg-red-950/30"}`}>
+      <button
+        className="w-full text-left p-3 flex items-center justify-between gap-2"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="font-mono text-sm text-white">{r.name}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_COLOR[r.caseType] ?? "bg-gray-700 text-gray-300"}`}>{r.caseType}</span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex gap-2 flex-wrap justify-end">
+            {Object.entries(r.score).map(([k, v]) => (
+              <span key={k} className="text-xs text-gray-400 font-mono">
+                {k}: {typeof v === "boolean" ? (v ? "✓" : "✗") : typeof v === "number" ? v.toFixed(2) : String(v)}
+              </span>
+            ))}
+          </div>
+          <span className={`text-xs font-semibold w-8 text-right ${r.passed ? "text-green-400" : "text-red-400"}`}>
+            {r.passed ? "PASS" : "FAIL"}
+          </span>
+          <span className="text-gray-500 text-xs">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-800 p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <DetailPane title="Input" data={r.input} />
+          <DetailPane title="Expected" data={r.expected} accent="text-emerald-400" />
+          <DetailPane title="Actual (agent output)" data={r.actual} accent={r.passed ? "text-emerald-400" : "text-red-400"} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailPane({ title, data, accent = "text-gray-400" }: { title: string; data: unknown; accent?: string }) {
+  const entries = typeof data === "object" && data !== null && !Array.isArray(data)
+    ? Object.entries(data as Record<string, unknown>)
+    : null;
+  return (
+    <div>
+      <div className={`text-[10px] uppercase tracking-wider font-bold mb-2 ${accent}`}>{title}</div>
+      <div className="bg-gray-950 rounded-lg p-3 space-y-2 max-h-72 overflow-y-auto">
+        {entries ? entries.map(([k, v]) => (
+          <div key={k}>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-0.5">{k}</div>
+            <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words leading-relaxed font-mono">
+              {typeof v === "string" ? v : JSON.stringify(v, null, 2)}
+            </pre>
+          </div>
+        )) : (
+          <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono">{JSON.stringify(data, null, 2)}</pre>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function EvalsPage() {
   const [running, setRunning] = useState(false);
@@ -106,27 +169,10 @@ export default function EvalsPage() {
             </div>
 
             {/* Individual results */}
-            <h2 className="text-base font-semibold text-gray-200 mb-3">Case Results</h2>
+            <h2 className="text-base font-semibold text-gray-200 mb-3">Case Results <span className="text-gray-500 text-sm font-normal">— click any row to inspect</span></h2>
             <div className="space-y-2">
               {result.results.map((r) => (
-                <div
-                  key={r.evalCaseId}
-                  className={`rounded-lg border p-3 ${r.passed ? "border-green-900 bg-green-950/30" : "border-red-900 bg-red-950/30"}`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-sm text-white">{r.name}</span>
-                    <span className={`text-xs font-medium ${r.passed ? "text-green-400" : "text-red-400"}`}>
-                      {r.passed ? "PASS" : "FAIL"}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {Object.entries(r.score).map(([k, v]) => (
-                      <span key={k} className="text-xs text-gray-400 font-mono">
-                        {k}: {typeof v === "boolean" ? (v ? "✓" : "✗") : typeof v === "number" ? v.toFixed(2) : String(v)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <EvalCard key={r.evalCaseId} r={r} />
               ))}
             </div>
           </>

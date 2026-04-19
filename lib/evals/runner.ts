@@ -25,6 +25,8 @@ type EvalResult = {
   passed: boolean;
   score: Record<string, unknown>;
   actual: unknown;
+  input: unknown;
+  expected: unknown;
 };
 
 export async function runEvalCase(evalCase: EvalCase): Promise<EvalResult> {
@@ -91,7 +93,7 @@ export async function runEvalCase(evalCase: EvalCase): Promise<EvalResult> {
     },
   });
 
-  return { evalCaseId: evalCase.id, name: evalCase.name, caseType: evalCase.caseType, passed, score, actual };
+  return { evalCaseId: evalCase.id, name: evalCase.name, caseType: evalCase.caseType, passed, score, actual, input: evalCase.inputJson, expected: evalCase.expectedJson };
 }
 
 function scoreLabels(actual: string[], expected: string[]): number {
