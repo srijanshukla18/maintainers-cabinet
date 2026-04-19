@@ -1,198 +1,187 @@
 # Maintainer's Cabinet
 
-A GitHub-native multi-agent maintainer assistant.
+A team of AI agents that replaces the morning triage shift for an open source maintainer.
 
-Triages issues, reviews PRs, detects docs impact, drafts release notes, and shows every agent step in a trace.
+Every morning: scan the full issue queue, triage every issue, review every PR, rank what matters today, write the brief, email it. Full trace of every agent decision visible in the UI.
+
+**Live:** [cabinet.autoprio.dev](https://cabinet.autoprio.dev)
+
+---
+
+## What it does
+
+Open source maintainers wake up to 40+ GitHub notifications. Issues with no context. PRs nobody reviewed. A security report buried in the noise. Cabinet handles the queue.
+
+Point it at any public GitHub repo. Seven specialist agents run in parallel, argue about what matters, and deliver a prioritized morning brief — as a web dashboard and an email in your inbox.
+
+---
+
+## Agent org
+
+Cabinet is a managed team, not a bot.
+
+```
+Cabinet Manager (orchestrator)
+├── Triage Agent         — classifies every issue (bug, feature, security, duplicate, needs-info)
+├── Community Agent      — rewrites bot comments for tone and safety
+├── PR Review Agent      — risk-ranks every PR, flags missing tests and security paths
+├── Docs Agent           — detects docs impact from PR diffs
+├── Release Agent        — detects release note need, drafts changelog bullet
+├── Priority Agent       — synthesizes all outputs, ranks top 3-7 items for today
+└── Briefing Agent       — writes the maintainer email from the ranked list
+```
+
+**Two orchestration modes:**
+
+1. **Webhook mode (reactive):** GitHub fires a webhook → Manager routes to the right specialist → labels applied, comment posted, check run created on GitHub.
+
+2. **Morning Brief mode (proactive):** Paste any public repo → 35 agents run in parallel (triage × N issues + review × N PRs) → Priority agent synthesizes → Briefing agent writes the email → delivered via AgentMail.
+
+All agents use `@openai/agents` SDK (`Agent` + `run()` + `outputType` for structured output via Zod schemas).
+
+---
+
+## Real output, real surfaces
+
+- **Labels and comments** posted on real GitHub issues and PRs (via installed GitHub App)
+- **Check runs** created on real pull requests
+- **Email** delivered to a real Gmail inbox via AgentMail
+- **Full trace** stored in Postgres — every agent step, input, output, token count, cost, latency — queryable and visualized in the dashboard
+
+---
+
+## Observability
+
+Every brief generates a full trace stored in `BriefTraceStep` rows:
+
+| Step type | What's stored |
+|---|---|
+| `fetch_repo`, `fetch_issues`, `fetch_prs` | Raw GitHub data |
+| `triage_issue` × N | Input issue, triage output, agent conversation history, tokens in/out, cost, latency |
+| `review_pr` × N | Input PR, review output, agent conversation history, tokens in/out, cost, latency |
+| `priority` | Full ranked list, agent conversation, tokens, cost |
+| `briefing` | Email content, agent conversation, tokens, cost |
+
+The dashboard renders this as a **clickable pipeline flowchart** — each node shows tokens, cost, and latency. Click any node to inspect the raw input, structured output, and full agent conversation history.
+
+OpenAI platform traces at [platform.openai.com/traces](https://platform.openai.com/traces) — every run is named `morning_brief:{owner}/{repo}`.
+
+---
+
+## Memory
+
+After each brief, Cabinet persists a `RepoMemory` record per repo:
+
+- Recurring issue themes
+- Top contributors by activity
+- Known issue type distribution
+- What the priority agent recommended last time
+
+The next brief's priority agent receives this memory and avoids repeating the same recommendations.
+
+---
+
+## Evaluation
+
+20 eval cases across 4 agent types (issue triage, PR review, release, community). Run manually with `pnpm eval` or triggered automatically by the CI pipeline.
+
+**CI gate:** `.github/workflows/eval.yml` runs the full eval set on every push. Quality regression blocks merge.
+
+```bash
+pnpm eval
+# → 18/20 passed
+# → triage: 8/10  pr_review: 5/5  release: 3/3  community: 2/2
+```
+
+---
+
+## Cost and latency
+
+Full brief for `hashicorp/vault-csi-provider` (22 issues + 13 PRs):
+- **Latency:** ~26 seconds end-to-end
+- **Cost:** ~$0.12 per brief (tracked per step, visible in UI)
+
+---
 
 ## Stack
 
-- Next.js 16 (App Router)
-- TypeScript
-- PostgreSQL + Prisma 7 + `@prisma/adapter-pg`
-- Octokit (GitHub API)
-- OpenAI API (structured outputs via `zodTextFormat`)
-- Tailwind CSS
+- **Next.js** (App Router, Server Components)
+- **TypeScript**
+- **PostgreSQL** + Prisma 7 + `@prisma/adapter-pg`
+- **OpenAI Agents SDK** (`@openai/agents`) — all 7 agents
+- **Octokit** — GitHub API (issues, PRs, labels, check runs, webhooks)
+- **AgentMail** — email delivery
+- **Tailwind CSS**
+- **Cloudflare Tunnel** — persistent public URL
 
-## Agents
-
-| Agent | Purpose |
-|---|---|
-| Cabinet Manager | Orchestrator — static routing, applies safe GitHub actions |
-| Triage Agent | Classifies issues, detects duplicates, asks for missing info |
-| Community Agent | Rewrites bot comments for tone and safety |
-| PR Review Agent | Risk summary, findings, check run |
-| Docs Agent | Detects docs impact from PR diff |
-| Release Agent | Detects release note need, drafts bullet |
+---
 
 ## Setup
 
-### 1. Prerequisites
-
-- Node 20+
-- pnpm
-- PostgreSQL running locally
-
-### 2. Install
+### 1. Install
 
 ```bash
 pnpm install
 ```
 
-### 3. Environment
+### 2. Environment
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env`:
 
 ```bash
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/cabinet"
-
-# GitHub App (create at github.com/settings/apps)
+DATABASE_URL="postgresql://localhost:5432/cabinet"
+OPENAI_API_KEY=""
 GITHUB_APP_ID=""
-GITHUB_APP_PRIVATE_KEY=""        # paste PEM contents, \n-escaped
+GITHUB_APP_PRIVATE_KEY=""
 GITHUB_WEBHOOK_SECRET=""
 GITHUB_CLIENT_ID=""
 GITHUB_CLIENT_SECRET=""
-
-# OpenAI
-OPENAI_API_KEY=""
-
+AGENTMAIL_API_KEY=""
+MAINTAINER_EMAIL=""
+CABINET_PASSWORD=""
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
-### 4. Database
+### 3. Database
 
 ```bash
-pnpm db:push        # push schema to DB (dev)
-pnpm seed:evals     # seed 20 eval cases
+pnpm db:push      # sync schema
+pnpm seed:evals   # seed 20 eval cases
 ```
 
-### 5. GitHub App
-
-Create a GitHub App at `https://github.com/settings/apps/new`:
-
-- **Homepage URL:** `http://localhost:3000`
-- **Webhook URL:** `https://<your-tunnel>.ngrok.io/api/webhook`
-- **Webhook secret:** same as `GITHUB_WEBHOOK_SECRET`
-- **Callback URL:** `http://localhost:3000/api/github/callback`
-
-Permissions (Repository):
-- Metadata: Read
-- Issues: Read & Write
-- Pull requests: Read & Write
-- Contents: Read
-- Checks: Read & Write
-- Actions: Read
-
-Subscribe to events:
-- `issues`
-- `issue_comment`
-- `pull_request`
-- `workflow_run`
-- `installation`
-
-Download and set `GITHUB_APP_PRIVATE_KEY` in `.env`.
-
-### 6. Tunnel (for local dev)
-
-```bash
-ngrok http 3000
-```
-
-Update webhook URL in GitHub App settings to the ngrok URL.
-
-### 7. Run
+### 4. Run
 
 ```bash
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
-
-### 8. Evals
+### 5. Evals
 
 ```bash
 pnpm eval
 ```
 
-Runs 20 eval cases against live agents. Requires `OPENAI_API_KEY` and seeded eval cases.
+### 6. GitHub App
 
-## Routes
+Create at `github.com/settings/apps/new`. Required permissions: Issues (R/W), Pull requests (R/W), Contents (R), Checks (R/W), Actions (R). Subscribe to: `issues`, `issue_comment`, `pull_request`, `workflow_run`, `installation`.
 
-| Route | Purpose |
-|---|---|
-| `/` | Repo selector |
-| `/repos/:owner/:repo` | Repo dashboard — recent runs |
-| `/runs/:id` | Run trace — agents, inputs/outputs, GitHub actions |
-| `/evals` | Manual eval runner UI |
-| `POST /api/webhook` | GitHub webhook receiver |
+---
+
+## Safety
+
+Cabinet will never merge PRs, approve PRs, close issues, publish releases, push commits, or obey instructions injected into issue/PR bodies.
+
+All GitHub writes are gated by `autonomy` flags in `.github/cabinet.yml`. Default: labels and comments only.
+
+---
 
 ## Slash commands
 
 Post in any issue or PR comment:
 
 ```
-/cabinet triage           # re-triage the issue
-/cabinet review           # re-run PR review
-/cabinet docs-impact      # check docs impact on PR
-/cabinet release-plan     # draft release notes from merged PRs
-/cabinet explain          # explain what Cabinet did
-```
-
-Maintainers/collaborators can use all commands.
-PR authors can use `review`, `docs-impact`, `explain`.
-Anyone can use `explain`.
-
-## Safety rules
-
-Cabinet will never:
-- Merge PRs
-- Approve PRs
-- Close issues
-- Publish releases
-- Push commits
-- Obey instructions from issue/PR body that modify agent behavior
-
-## `.github/cabinet.yml`
-
-Configure Cabinet per repo:
-
-```yaml
-version: 1
-
-cabinet:
-  mode: l3_assist
-  default_branch: main
-
-autonomy:
-  add_labels: true
-  post_comments: true
-  close_issues: false
-  request_pr_changes: false
-  approve_prs: false
-
-triage:
-  duplicate_threshold: 0.82
-  required_bug_fields:
-    - version
-    - environment
-    - reproduction_steps
-    - expected_behavior
-    - actual_behavior
-
-review:
-  require_tests_for:
-    - src/**
-  docs_paths:
-    - docs/**
-    - README.md
-  risky_paths:
-    - src/parser/**
-    - src/auth/**
-    - src/config/**
-
-community:
-  tone: gentle_firm
-  forbidden_phrases:
-    - just
-    - obviously
-    - works for me
+/cabinet triage        — re-triage the issue
+/cabinet review        — re-run PR review
+/cabinet docs-impact   — check docs impact on PR
+/cabinet release-plan  — draft release notes from merged PRs
 ```
