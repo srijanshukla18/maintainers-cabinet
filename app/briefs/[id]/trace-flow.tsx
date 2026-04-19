@@ -168,9 +168,9 @@ export default function TraceFlow({ steps }: { steps: TraceStep[] }) {
               )}
 
               <div className="p-6 overflow-y-auto flex-1 grid lg:grid-cols-3 gap-5 items-start">
-                <DetailBlock title="Input" data={selectedStep.inputJson} />
-                <DetailBlock title="Output" data={selectedStep.outputJson} />
-                <DetailBlock title="Agent Conversation" data={selectedStep.traceJson} />
+                <KVBlock title="Input" data={selectedStep.inputJson} />
+                <KVBlock title="Output" data={selectedStep.outputJson} />
+                <ConversationBlock data={selectedStep.traceJson} />
               </div>
             </div>
           </div>
@@ -180,15 +180,90 @@ export default function TraceFlow({ steps }: { steps: TraceStep[] }) {
   );
 }
 
-function DetailBlock({ title, data }: { title: string; data: unknown }) {
+function KVBlock({ title, data }: { title: string; data: unknown }) {
   if (!data) return null;
+  const entries = typeof data === "object" && data !== null ? Object.entries(data as Record<string, unknown>) : null;
   return (
     <div>
       <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">{title}</div>
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-        <pre className="text-xs leading-relaxed text-gray-700 font-mono overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words max-h-[60vh]">
-          {JSON.stringify(data, null, 2)}
-        </pre>
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2 max-h-[60vh] overflow-y-auto">
+        {entries ? entries.map(([k, v]) => (
+          <div key={k}>
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-0.5">{k}</div>
+            <div className="text-xs text-gray-800 leading-relaxed font-mono whitespace-pre-wrap break-words">
+              {typeof v === "string"
+                ? v
+                : Array.isArray(v)
+                ? v.map((item, i) => (
+                    <span key={i} className="block">{typeof item === "string" ? item : JSON.stringify(item, null, 2)}</span>
+                  ))
+                : typeof v === "object" && v !== null
+                ? Object.entries(v as Record<string, unknown>).map(([ik, iv]) => (
+                    <span key={ik} className="block"><span className="text-gray-400">{ik}:</span> {typeof iv === "string" ? iv : JSON.stringify(iv)}</span>
+                  ))
+                : JSON.stringify(v)}
+            </div>
+          </div>
+        )) : (
+          <pre className="text-xs text-gray-700 font-mono whitespace-pre-wrap break-words">{JSON.stringify(data, null, 2)}</pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type ConversationMessage = { role?: string; type?: string; content?: string | unknown[] };
+
+function ConversationBlock({ data }: { data: unknown }) {
+  if (!data) return null;
+
+  const raw = data as Record<string, unknown>;
+  const messages: ConversationMessage[] = Array.isArray(raw.history)
+    ? (raw.history as ConversationMessage[])
+    : Array.isArray(raw.input)
+    ? (raw.input as ConversationMessage[])
+    : [];
+
+  if (messages.length === 0) {
+    return (
+      <div>
+        <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">Agent Conversation</div>
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 max-h-[60vh] overflow-y-auto">
+          <pre className="text-xs text-gray-700 font-mono whitespace-pre-wrap break-words">{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">Agent Conversation</div>
+      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+        {messages.map((msg, i) => {
+          const role = msg.role ?? msg.type ?? "unknown";
+          const isUser = role === "user";
+          const isAssistant = role === "assistant";
+          const content = typeof msg.content === "string"
+            ? msg.content
+            : Array.isArray(msg.content)
+            ? (msg.content as Array<{ text?: string; type?: string }>)
+                .map((c) => c.text ?? JSON.stringify(c))
+                .join("\n")
+            : JSON.stringify(msg.content);
+
+          return (
+            <div key={i} className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${
+              isUser ? "bg-indigo-50 border border-indigo-100" :
+              isAssistant ? "bg-white border border-gray-200" :
+              "bg-gray-50 border border-gray-100"
+            }`}>
+              <div className={`text-[10px] uppercase tracking-wider font-bold mb-1 ${
+                isUser ? "text-indigo-500" : isAssistant ? "text-emerald-600" : "text-gray-400"
+              }`}>{role}</div>
+              <div className="text-gray-700 whitespace-pre-wrap break-words">{content}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

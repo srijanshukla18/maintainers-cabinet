@@ -1,6 +1,8 @@
 # Maintainer's Cabinet
 
-A team of AI agents that autonomously handles the OSS maintainer's morning queue — triage, PR review, docs drift, release notes, and a daily email brief. Every decision is traced, observable, and improvable.
+A team of 8 AI specialist agents that autonomously handles the OSS maintainer's morning queue — for solo developers and corporate-backed teams alike. Defensive triage, deep PR review, security escalation, docs drift, release notes — all in one place, every morning, with a full trace of every decision.
+
+No existing tool covers all four: **Defensive Triage · Deep Context Review · Security & Vulnerability Toil · Documentation & Support Deflection.** Cabinet covers all of them as a coordinated agent team.
 
 **Live:** [cabinet.autoprio.dev](https://cabinet.autoprio.dev)
 

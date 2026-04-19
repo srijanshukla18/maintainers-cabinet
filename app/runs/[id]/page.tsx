@@ -21,6 +21,25 @@ function Badge({ label, status }: { label: string; status: string }) {
 }
 
 function JsonBlock({ data }: { data: unknown }) {
+  const entries = typeof data === "object" && data !== null && !Array.isArray(data)
+    ? Object.entries(data as Record<string, unknown>)
+    : null;
+
+  if (entries) {
+    return (
+      <div className="bg-gray-950 rounded p-3 space-y-2 max-h-64 overflow-y-auto">
+        {entries.map(([k, v]) => (
+          <div key={k}>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-0.5">{k}</div>
+            <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
+              {typeof v === "string" ? v : JSON.stringify(v, null, 2)}
+            </pre>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <pre className="bg-gray-950 text-gray-300 rounded p-3 text-xs overflow-x-auto whitespace-pre-wrap max-h-64">
       {JSON.stringify(data, null, 2)}

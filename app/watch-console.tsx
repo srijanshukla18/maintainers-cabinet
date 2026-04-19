@@ -10,6 +10,9 @@ type WatchedRepo = {
   emailRecipient: string;
   scheduleHour: number;
   active: boolean;
+  autoPostComments: boolean;
+  autoAddLabels: boolean;
+  duplicateThreshold: number;
   lastRunAt: string | null;
   lastBriefId: string | null;
 };
@@ -23,6 +26,134 @@ function formatRelative(d: string | null) {
   const hours = Math.round(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+function RepoCard({ repo, onUpdate, onDelete, onTrigger, triggering }: {
+  repo: WatchedRepo;
+  onUpdate: (id: string, data: Partial<WatchedRepo>) => void;
+  onDelete: (id: string) => void;
+  onTrigger: (repo: WatchedRepo) => void;
+  triggering: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [fields, setFields] = useState({
+    emailRecipient: repo.emailRecipient,
+    scheduleHour: String(repo.scheduleHour),
+    autoPostComments: repo.autoPostComments,
+    autoAddLabels: repo.autoAddLabels,
+    duplicateThreshold: String(repo.duplicateThreshold),
+  });
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/watched/${repo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          emailRecipient: fields.emailRecipient,
+          scheduleHour: parseInt(fields.scheduleHour),
+          autoPostComments: fields.autoPostComments,
+          autoAddLabels: fields.autoAddLabels,
+          duplicateThreshold: parseFloat(fields.duplicateThreshold),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) { onUpdate(repo.id, data); setExpanded(false); }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    await fetch(`/api/watched/${repo.id}`, { method: "DELETE" });
+    onDelete(repo.id);
+  }
+
+  return (
+    <div className="border-t border-gray-100 first:border-t-0">
+      <div className="px-5 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-sm font-mono font-bold text-gray-900">{repo.owner}/{repo.name}</div>
+            <div className="text-xs text-gray-400 font-mono mt-0.5">
+              {repo.scheduleHour}:00 UTC · {repo.emailRecipient} · last run {formatRelative(repo.lastRunAt)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {repo.lastBriefId && (
+              <a href={`/briefs/${repo.lastBriefId}`} className="text-xs text-indigo-600 font-semibold hover:underline">brief</a>
+            )}
+            <button onClick={() => setExpanded(!expanded)} className="text-xs text-gray-400 hover:text-gray-700 font-mono px-2 py-1 rounded-lg hover:bg-gray-100">
+              {expanded ? "close" : "settings"}
+            </button>
+            <button
+              onClick={() => onTrigger(repo)}
+              disabled={triggering === repo.id}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {triggering === repo.id ? "Running..." : "Run now"}
+            </button>
+          </div>
+        </div>
+
+        {/* Inline settings panel */}
+        {expanded && (
+          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">Agent Configuration</div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">Email recipient</label>
+                <input value={fields.emailRecipient} onChange={(e) => setFields((p) => ({ ...p, emailRecipient: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">Schedule (UTC hour)</label>
+                <select value={fields.scheduleHour} onChange={(e) => setFields((p) => ({ ...p, scheduleHour: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>{i}:00 UTC</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-2">Autonomy</div>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={fields.autoPostComments} onChange={(e) => setFields((p) => ({ ...p, autoPostComments: e.target.checked }))}
+                  className="rounded border-gray-300" />
+                Post comments
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={fields.autoAddLabels} onChange={(e) => setFields((p) => ({ ...p, autoAddLabels: e.target.checked }))}
+                  className="rounded border-gray-300" />
+                Add labels
+              </label>
+              <div>
+                <label className="text-xs text-gray-500 font-semibold block mb-1">Duplicate threshold</label>
+                <input type="number" step="0.01" min="0.5" max="1.0" value={fields.duplicateThreshold}
+                  onChange={(e) => setFields((p) => ({ ...p, duplicateThreshold: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button onClick={remove} className="text-xs text-red-500 hover:text-red-700 font-semibold">Remove repo</button>
+              <div className="flex gap-2">
+                <button onClick={() => setExpanded(false)} className="text-xs text-gray-400 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100">Cancel</button>
+                <button onClick={save} disabled={saving}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-semibold text-xs px-4 py-1.5 rounded-lg transition-colors">
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
@@ -79,7 +210,7 @@ export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
       <div className="border-b border-gray-100 px-5 py-3 flex items-center justify-between">
         <div>
           <div className="text-xs uppercase tracking-widest text-indigo-600 font-bold">Watched Repos</div>
-          <div className="text-sm text-gray-500">Cabinet runs every morning automatically. Trigger anytime.</div>
+          <div className="text-sm text-gray-500">Briefs run automatically on schedule. Configure each repo independently.</div>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -87,59 +218,40 @@ export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
         </div>
       </div>
 
-      {/* Watched repos list */}
-      {repos.length > 0 && (
-        <div className="divide-y divide-gray-50">
-          {repos.map((repo) => (
-            <div key={repo.id} className="px-5 py-3 flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-sm font-mono font-semibold text-gray-900">{repo.owner}/{repo.name}</div>
-                <div className="text-xs text-gray-400 font-mono">
-                  daily at {repo.scheduleHour}:00 UTC · {repo.emailRecipient} · last run {formatRelative(repo.lastRunAt)}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {repo.lastBriefId && (
-                  <a href={`/briefs/${repo.lastBriefId}`} className="text-xs text-indigo-600 font-semibold hover:underline">
-                    last brief
-                  </a>
-                )}
-                <button
-                  onClick={() => triggerNow(repo)}
-                  disabled={triggering === repo.id}
-                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {triggering === repo.id ? "Running..." : "Run now"}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {repos.length === 0 && (
+        <div className="px-5 py-6 text-center text-sm text-gray-400">No repos watched yet. Add one below.</div>
       )}
+
+      {repos.map((repo) => (
+        <RepoCard
+          key={repo.id}
+          repo={repo}
+          triggering={triggering}
+          onTrigger={triggerNow}
+          onUpdate={(id, data) => setRepos((prev) => prev.map((r) => r.id === id ? { ...r, ...data } : r))}
+          onDelete={(id) => setRepos((prev) => prev.filter((r) => r.id !== id))}
+        />
+      ))}
+
+      {error && <div className="px-5 py-2 text-xs text-red-600 font-medium border-t border-gray-100">{error}</div>}
 
       {/* Add form */}
       <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
         <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">Watch a new repo</div>
         <div className="grid grid-cols-2 gap-2 mb-2">
-          <input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="owner" className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="repo" className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          <input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="owner" className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="repo" className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
         </div>
         <div className="grid grid-cols-[1fr_80px_auto] gap-2">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email to receive brief" className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-          <select value={hour} onChange={(e) => setHour(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
-            {Array.from({ length: 24 }, (_, i) => (
-              <option key={i} value={i}>{i}:00 UTC</option>
-            ))}
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          <select value={hour} onChange={(e) => setHour(e.target.value)} className="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
+            {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i}:00 UTC</option>)}
           </select>
-          <button
-            onClick={addRepo}
-            disabled={adding || !owner || !name || !email}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
-          >
+          <button onClick={addRepo} disabled={adding || !owner || !name || !email}
+            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-semibold text-sm px-4 py-2 rounded-lg transition-colors">
             {adding ? "..." : "Watch"}
           </button>
         </div>
-        {error && <div className="mt-2 text-xs text-red-600 font-medium">{error}</div>}
       </div>
     </div>
   );

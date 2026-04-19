@@ -27,15 +27,19 @@ model Repo {
 }
 
 model WatchedRepo {
-  id             String   @id @default(cuid())
-  owner          String
-  name           String
-  emailRecipient String
-  scheduleHour   Int      @default(8) // UTC hour to send brief
-  active         Boolean  @default(true)
-  lastRunAt      DateTime?
-  lastBriefId    String?
-  createdAt      DateTime @default(now())
+  id                  String   @id @default(cuid())
+  owner               String
+  name                String
+  emailRecipient      String
+  scheduleHour        Int      @default(8) // UTC hour to send brief
+  active              Boolean  @default(true)
+  // Autonomy settings (overrides .github/cabinet.yml)
+  autoPostComments    Boolean  @default(true)
+  autoAddLabels       Boolean  @default(true)
+  duplicateThreshold  Float    @default(0.82)
+  lastRunAt           DateTime?
+  lastBriefId         String?
+  createdAt           DateTime @default(now())
 
   @@unique([owner, name])
 }

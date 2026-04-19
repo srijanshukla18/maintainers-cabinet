@@ -43,9 +43,11 @@ export default async function BriefPage({
             </h1>
             <div className="flex items-center gap-3 text-sm text-gray-400 font-mono flex-wrap">
               <span>{formatDate(brief.generatedAt)}</span>
-              {brief.latencyMs && <span>· {(brief.latencyMs / 1000).toFixed(1)}s total</span>}
-              <span>· {brief.traceSteps.length} trace steps</span>
-              {brief.emailSentAt && <span className="text-emerald-600 font-semibold">sent to {brief.emailRecipient}</span>}
+              {brief.latencyMs && <span>· {(brief.latencyMs / 1000).toFixed(1)}s</span>}
+              {brief.tokensUsed && <span>· {brief.tokensUsed.toLocaleString("en-US")} tokens</span>}
+              {brief.costUsd && <span className="text-emerald-600 font-semibold">· ${brief.costUsd.toFixed(4)}</span>}
+              <span>· {brief.traceSteps.length} steps</span>
+              {brief.emailSentAt && <span className="text-emerald-600 font-semibold">· sent to {brief.emailRecipient}</span>}
             </div>
           </div>
 
