@@ -1,6 +1,16 @@
 import { Agent, run } from "@openai/agents";
 import { TriageOutputSchema, type TriageOutput, type WorkPacket } from "./types";
 
+export interface AgentTrace<T> {
+  output: T;
+  trace: {
+    input: string;
+    history: unknown;
+    newItems: unknown;
+    lastAgent: string | null;
+  };
+}
+
 const TRIAGE_INSTRUCTIONS = `
 You are the Triage Agent for Maintainer's Cabinet — a GitHub-native maintainer assistant.
 
@@ -25,12 +35,12 @@ const triageAgent = new Agent({
   outputType: TriageOutputSchema,
 });
 
-export async function runTriageAgent(packet: WorkPacket): Promise<TriageOutput> {
+function buildTriageMessage(packet: WorkPacket): string {
   if (!packet.issue) throw new Error("No issue context in work packet");
 
   const { issue, config } = packet;
 
-  const userMessage = `
+  return `
 ## Issue to triage
 
 **Title:** ${issue.title}
@@ -53,10 +63,29 @@ ${
 - required_bug_fields: ${config.triage.required_bug_fields.join(", ")}
 - forbidden_phrases in comments: ${config.community.forbidden_phrases.join(", ")}
 `.trim();
+}
 
-  const result = await run(triageAgent, userMessage);
+export async function runTriageAgent(packet: WorkPacket): Promise<TriageOutput> {
+  const result = await run(triageAgent, buildTriageMessage(packet));
 
   const output = result.finalOutput as TriageOutput;
   if (!output) throw new Error("Triage agent returned no output");
   return output;
+}
+
+export async function runTriageAgentDetailed(packet: WorkPacket): Promise<AgentTrace<TriageOutput>> {
+  const input = buildTriageMessage(packet);
+  const result = await run(triageAgent, input);
+  const output = result.finalOutput as TriageOutput | undefined;
+  if (!output) throw new Error("Triage agent returned no output");
+
+  return {
+    output,
+    trace: {
+      input,
+      history: (result as { history?: unknown }).history ?? null,
+      newItems: (result as { newItems?: unknown }).newItems ?? null,
+      lastAgent: (result as { lastAgent?: { name?: string } }).lastAgent?.name ?? null,
+    },
+  };
 }

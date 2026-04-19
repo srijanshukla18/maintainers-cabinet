@@ -29,6 +29,9 @@ importers:
       '@types/pg':
         specifier: ^8.20.0
         version: 8.20.0
+      agentmail:
+        specifier: ^0.4.19
+        version: 0.4.19
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -1239,6 +1242,10 @@ packages:
     resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  agentmail@0.4.19:
+    resolution: {integrity: sha512-mTCaO/yXDKI+P+SOLKwtvxIH1p+z6/parhQFtG+8fH7S7lXpWOdyOrDyaPUArhmX6qSmppDu7QO7jOqnraNOiA==}
+    engines: {node: '>=18.0.0'}
 
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
@@ -4121,6 +4128,13 @@ snapshots:
       acorn: 8.16.0
 
   acorn@8.16.0: {}
+
+  agentmail@0.4.19:
+    dependencies:
+      ws: 8.20.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   ajv-formats@3.0.1(ajv@8.18.0):
     optionalDependencies:

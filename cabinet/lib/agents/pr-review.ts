@@ -1,5 +1,6 @@
 import { Agent, run } from "@openai/agents";
 import { PrReviewOutputSchema, type PrReviewOutput, type WorkPacket } from "./types";
+import type { AgentTrace } from "./triage";
 
 const PR_REVIEW_INSTRUCTIONS = `
 You are the PR Review Agent for Maintainer's Cabinet.
@@ -23,7 +24,7 @@ const prReviewAgent = new Agent({
   outputType: PrReviewOutputSchema,
 });
 
-export async function runPrReviewAgent(packet: WorkPacket): Promise<PrReviewOutput> {
+function buildPrReviewMessage(packet: WorkPacket): string {
   if (!packet.pr) throw new Error("No PR context in work packet");
 
   const { pr, config } = packet;
@@ -41,7 +42,7 @@ export async function runPrReviewAgent(packet: WorkPacket): Promise<PrReviewOutp
     )
     .join("\n\n");
 
-  const userMessage = `
+  return `
 ## Pull Request
 
 **Title:** ${pr.title}
@@ -60,10 +61,29 @@ ${patchSample}
 - docs_paths: ${config.review.docs_paths.join(", ")}
 - risky_paths: ${config.review.risky_paths.join(", ")}
 `.trim();
+}
 
-  const result = await run(prReviewAgent, userMessage);
+export async function runPrReviewAgent(packet: WorkPacket): Promise<PrReviewOutput> {
+  const result = await run(prReviewAgent, buildPrReviewMessage(packet));
 
   const output = result.finalOutput as PrReviewOutput;
   if (!output) throw new Error("PR Review agent returned no output");
   return output;
+}
+
+export async function runPrReviewAgentDetailed(packet: WorkPacket): Promise<AgentTrace<PrReviewOutput>> {
+  const input = buildPrReviewMessage(packet);
+  const result = await run(prReviewAgent, input);
+  const output = result.finalOutput as PrReviewOutput | undefined;
+  if (!output) throw new Error("PR Review agent returned no output");
+
+  return {
+    output,
+    trace: {
+      input,
+      history: (result as { history?: unknown }).history ?? null,
+      newItems: (result as { newItems?: unknown }).newItems ?? null,
+      lastAgent: (result as { lastAgent?: { name?: string } }).lastAgent?.name ?? null,
+    },
+  };
 }

@@ -1,5 +1,50 @@
 import { z } from "zod";
 
+// ── Priority (Morning Brief) ─────────────────────────────────────────────────
+
+export const PriorityItemSchema = z.object({
+  kind: z.enum(["issue", "pr", "release_blocker", "community_risk"]),
+  reference: z.string(), // e.g. "#123" or "PR #340"
+  url: z.string(),
+  title: z.string(),
+  priority: z.enum(["do_today", "this_week", "watch"]),
+  score: z.number().min(0).max(100),
+  reason: z.string(),
+  action: z.string(),
+});
+
+export const PriorityOutputSchema = z.object({
+  summary_line: z.string(),
+  items: z.array(PriorityItemSchema),
+  queue_health: z.object({
+    open_issues: z.number(),
+    open_prs: z.number(),
+    stale_prs: z.number(),
+    ready_to_merge: z.number(),
+    needs_triage: z.number(),
+    security_flags: z.number(),
+  }),
+});
+
+export type PriorityItem = z.infer<typeof PriorityItemSchema>;
+export type PriorityOutput = z.infer<typeof PriorityOutputSchema>;
+
+// ── Briefing ─────────────────────────────────────────────────────────────────
+
+export const BriefingOutputSchema = z.object({
+  subject: z.string(),
+  opening: z.string(),
+  top_actions: z.array(z.object({
+    heading: z.string(),
+    body: z.string(),
+    url: z.string().optional(),
+  })),
+  queue_summary: z.string(),
+  closing: z.string(),
+});
+
+export type BriefingOutput = z.infer<typeof BriefingOutputSchema>;
+
 // ── Triage ──────────────────────────────────────────────────────────────────
 
 export const TriageOutputSchema = z.object({

@@ -8,17 +8,19 @@ datasource db {
 
 model Repo {
   id             String   @id @default(cuid())
-  githubRepoId   BigInt   @unique
+  githubRepoId   BigInt?  @unique
   owner          String
   name           String
-  installationId BigInt
+  installationId BigInt?
   defaultBranch  String   @default("main")
+  accessMode     String   @default("public") // public | installed
   configJson     Json     @default("{}")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   githubEvents GithubEvent[]
   runs         Run[]
+  briefs       Brief[]
 
   @@unique([owner, name])
 }
@@ -102,4 +104,47 @@ model EvalResult {
   scoreJson   Json?
   passed      Boolean?
   createdAt   DateTime @default(now())
+}
+
+model Brief {
+  id             String   @id @default(cuid())
+  repo           Repo     @relation(fields: [repoId], references: [id])
+  repoId         String
+  generatedAt    DateTime @default(now())
+  subject        String
+  bodyMarkdown   String
+  bodyHtml       String
+  contextJson    Json     // collected data that went into the brief
+  prioritiesJson Json     // ranked items from Priority agent
+  tokensUsed     Int?
+  costUsd        Float?
+  latencyMs      Int?
+  emailSentAt    DateTime?
+  emailInboxId   String?
+  emailMessageId String?
+  emailRecipient String?
+  status         String   @default("done") // pending | done | error
+  runIds         String[] // linked agent runs
+  traceSteps     BriefTraceStep[]
+
+  @@index([repoId, generatedAt])
+}
+
+model BriefTraceStep {
+  id         String   @id @default(cuid())
+  brief      Brief    @relation(fields: [briefId], references: [id])
+  briefId    String
+  stepType   String   // fetch_repo | fetch_issues | triage_issue | review_pr | priority | briefing
+  stepName   String
+  targetRef  String?
+  status     String   @default("done") // pending | done | error
+  inputJson  Json
+  outputJson Json?
+  traceJson  Json?
+  latencyMs  Int?
+  error      String?
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  @@index([briefId, startedAt])
 }
