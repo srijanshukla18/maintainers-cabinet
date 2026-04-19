@@ -55,25 +55,33 @@ export async function processEvent(githubEventId: string): Promise<void> {
       config,
     };
 
+    // ── Feature flag: webhook auto-processing (default off) ────────────────
+    // Slash commands (/cabinet ...) always run regardless of this flag.
+    const webhookProcessingEnabled = process.env.CABINET_WEBHOOK_PROCESSING === "true";
+
     // ── Route event ────────────────────────────────────────────────────────
     if (event.eventType === "issues" && event.action === "opened") {
-      const issuePayload = payload as { issue: { number: number; title: string; body: string; user: { login: string }; labels: Array<{ name: string }> } };
-      const issue = issuePayload.issue;
-      const similarRaw = await searchIssues(octokit, repo.owner, repo.name, issue.title.split(" ").slice(0, 5).join(" "));
+      if (!webhookProcessingEnabled) {
+        await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Webhook auto-processing disabled (CABINET_WEBHOOK_PROCESSING != true). Event stored for audit." } });
+      } else {
+        const issuePayload = payload as { issue: { number: number; title: string; body: string; user: { login: string }; labels: Array<{ name: string }> } };
+        const issue = issuePayload.issue;
+        const similarRaw = await searchIssues(octokit, repo.owner, repo.name, issue.title.split(" ").slice(0, 5).join(" "));
 
-      basePacket.issue = {
-        number: issue.number,
-        title: issue.title,
-        body: issue.body ?? "",
-        author: issue.user.login,
-        labels: (issue.labels ?? []).map((l) => l.name),
-        similarIssues: similarRaw
-          .filter((s) => s.number !== issue.number)
-          .slice(0, 3)
-          .map((s) => ({ number: s.number, title: s.title })),
-      };
+        basePacket.issue = {
+          number: issue.number,
+          title: issue.title,
+          body: issue.body ?? "",
+          author: issue.user.login,
+          labels: (issue.labels ?? []).map((l) => l.name),
+          similarIssues: similarRaw
+            .filter((s) => s.number !== issue.number)
+            .slice(0, 3)
+            .map((s) => ({ number: s.number, title: s.title })),
+        };
 
-      await runManager(basePacket);
+        await runManager(basePacket);
+      }
     } else if (
       event.eventType === "issue_comment" &&
       event.action === "created"
@@ -85,40 +93,48 @@ export async function processEvent(githubEventId: string): Promise<void> {
       (event.eventType === "pull_request" && event.action === "opened") ||
       (event.eventType === "pull_request" && event.action === "synchronize")
     ) {
-      const prPayload = payload as { pull_request: { number: number; title: string; body: string; user: { login: string }; head: { sha: string } } };
-      const pr = prPayload.pull_request;
-      const files = await getPullRequestFiles(octokit, repo.owner, repo.name, pr.number);
+      if (!webhookProcessingEnabled) {
+        await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Webhook auto-processing disabled (CABINET_WEBHOOK_PROCESSING != true). Event stored for audit." } });
+      } else {
+        const prPayload = payload as { pull_request: { number: number; title: string; body: string; user: { login: string }; head: { sha: string } } };
+        const pr = prPayload.pull_request;
+        const files = await getPullRequestFiles(octokit, repo.owner, repo.name, pr.number);
 
-      basePacket.pr = {
-        number: pr.number,
-        title: pr.title,
-        body: pr.body ?? "",
-        author: pr.user.login,
-        headSha: pr.head.sha,
-        changedFiles: files.map((f) => ({
-          filename: f.filename,
-          status: f.status,
-          patch: f.patch,
-        })),
-      };
+        basePacket.pr = {
+          number: pr.number,
+          title: pr.title,
+          body: pr.body ?? "",
+          author: pr.user.login,
+          headSha: pr.head.sha,
+          changedFiles: files.map((f) => ({
+            filename: f.filename,
+            status: f.status,
+            patch: f.patch,
+          })),
+        };
 
-      await runManager(basePacket);
+        await runManager(basePacket);
+      }
     } else if (
       event.eventType === "workflow_run" &&
       event.action === "completed"
     ) {
-      const wfPayload = payload as { workflow_run: { conclusion: string; name: string; pull_requests?: Array<{ number: number }> }; workflow_run_jobs?: Array<{ conclusion: string; name: string }> };
-      const wf = wfPayload.workflow_run;
-      if (wf.conclusion !== "failure") {
-        await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Workflow succeeded — no action." } });
+      if (!webhookProcessingEnabled) {
+        await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Webhook auto-processing disabled (CABINET_WEBHOOK_PROCESSING != true). Event stored for audit." } });
       } else {
-        basePacket.workflowRun = {
-          conclusion: wf.conclusion,
-          name: wf.name,
-          failedJobs: [],
-          prNumber: wf.pull_requests?.[0]?.number,
-        };
-        await runManager(basePacket);
+        const wfPayload = payload as { workflow_run: { conclusion: string; name: string; pull_requests?: Array<{ number: number }> }; workflow_run_jobs?: Array<{ conclusion: string; name: string }> };
+        const wf = wfPayload.workflow_run;
+        if (wf.conclusion !== "failure") {
+          await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Workflow succeeded — no action." } });
+        } else {
+          basePacket.workflowRun = {
+            conclusion: wf.conclusion,
+            name: wf.name,
+            failedJobs: [],
+            prNumber: wf.pull_requests?.[0]?.number,
+          };
+          await runManager(basePacket);
+        }
       }
     } else {
       await prisma.run.update({ where: { id: run.id }, data: { status: "done", finishedAt: new Date(), summary: "Unhandled event type." } });
