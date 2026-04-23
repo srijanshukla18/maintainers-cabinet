@@ -14,10 +14,12 @@ import { generateBrief } from "../briefs/generate";
 import { sendBrief } from "../email/client";
 
 let started = false;
+let startedAt: Date | null = null;
 
 export function startScheduler() {
   if (started) return;
   started = true;
+  startedAt = new Date();
 
   // Check every hour on the :00 mark
   cron.schedule("0 * * * *", async () => {
@@ -61,6 +63,15 @@ export function startScheduler() {
   });
 
   console.log("[cron] scheduler started — checking watched repos hourly");
+}
+
+export function getSchedulerStatus() {
+  return {
+    started,
+    startedAt: startedAt?.toISOString() ?? null,
+    mode: started ? "in-process" : "not-started",
+    schedule: "0 * * * *",
+  };
 }
 
 export async function runNow(owner: string, name: string, emailRecipient: string): Promise<string> {

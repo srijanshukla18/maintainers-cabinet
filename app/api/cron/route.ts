@@ -5,13 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { runNow } from "@/lib/cron/scheduler";
+import { getSchedulerStatus, runNow } from "@/lib/cron/scheduler";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function GET() {
-  return NextResponse.json({ status: "ok" });
+  return NextResponse.json({ status: "ok", scheduler: getSchedulerStatus() });
 }
 
 export async function POST(req: NextRequest) {

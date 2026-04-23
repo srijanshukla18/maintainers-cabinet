@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "worker:dev": "tsx worker/index.ts",
+    "mcp:dev": "tsx mcp/server.ts",
     "lint": "eslint",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",

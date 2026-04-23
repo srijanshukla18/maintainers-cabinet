@@ -22,6 +22,12 @@ model Repo {
   runs         Run[]
   briefs       Brief[]
   memory       RepoMemory?
+  workItems    WorkItem[]
+  policyRules  PolicyRule[]
+  identities   IdentityProfile[]
+  graphSnapshots RepoGraphSnapshot[]
+  securityVerdicts SecurityVerdict[]
+  moneyThreads MoneyThread[]
 
   @@unique([owner, name])
 }
@@ -183,4 +189,169 @@ model BriefTraceStep {
   finishedAt DateTime?
 
   @@index([briefId, startedAt])
+}
+
+model WorkItem {
+  id               String   @id @default(cuid())
+  repo             Repo?    @relation(fields: [repoId], references: [id])
+  repoId           String?
+  kind             String
+  source           String
+  status           String   @default("open") // open | snoozed | resolved
+  title            String
+  summary          String
+  sourceRef        String?
+  sourceUrl        String?
+  urgencyScore     Int      @default(0)
+  impactScore      Int      @default(0)
+  trustScore       Int?
+  slopScore        Int?
+  autoExecutable   Boolean  @default(false)
+  requiresApproval Boolean  @default(true)
+  evidenceJson     Json     @default("[]")
+  payloadJson      Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  snoozedUntil     DateTime?
+
+  actions    ActionProposal[]
+  executions ExecutionRecord[]
+  supportResolution SupportResolution?
+  securityVerdicts  SecurityVerdict[]
+
+  @@index([status, createdAt])
+  @@index([repoId, createdAt])
+}
+
+model ActionProposal {
+  id             String   @id @default(cuid())
+  workItem       WorkItem @relation(fields: [workItemId], references: [id])
+  workItemId     String
+  kind           String
+  label          String
+  status         String   @default("proposed") // proposed | approved | rejected | executed | error
+  reversible     Boolean  @default(true)
+  downstreamJson Json     @default("[]")
+  payloadJson    Json     @default("{}")
+  createdAt      DateTime @default(now())
+  decidedAt      DateTime?
+
+  executions ExecutionRecord[]
+
+  @@index([workItemId, status])
+}
+
+model ExecutionRecord {
+  id               String          @id @default(cuid())
+  workItem         WorkItem?       @relation(fields: [workItemId], references: [id])
+  workItemId       String?
+  actionProposal   ActionProposal? @relation(fields: [actionProposalId], references: [id], onDelete: SetNull)
+  actionProposalId String?
+  executorKind     String
+  status           String          @default("done") // done | error
+  summary          String
+  payloadJson      Json            @default("{}")
+  createdAt        DateTime        @default(now())
+
+  @@index([createdAt])
+}
+
+model PolicyRule {
+  id         String   @id @default(cuid())
+  repo       Repo?    @relation(fields: [repoId], references: [id])
+  repoId     String?
+  scope      String   // global | repo | surface
+  name       String
+  ruleType   String
+  enabled    Boolean  @default(true)
+  configJson Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([repoId, enabled])
+}
+
+model IdentityProfile {
+  id           String   @id @default(cuid())
+  repo         Repo?    @relation(fields: [repoId], references: [id])
+  repoId       String?
+  source       String
+  externalKey  String
+  login        String?
+  displayName  String?
+  trustScore   Int?
+  slopScore    Int?
+  statsJson    Json     @default("{}")
+  evidenceJson Json     @default("[]")
+  lastSeenAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([source, externalKey])
+  @@index([repoId, source])
+}
+
+model RepoGraphSnapshot {
+  id              String   @id @default(cuid())
+  repo            Repo     @relation(fields: [repoId], references: [id])
+  repoId          String
+  revision        String
+  languageSummary Json     @default("{}")
+  symbolsJson     Json     @default("[]")
+  edgesJson       Json     @default("[]")
+  publicApisJson  Json     @default("[]")
+  createdAt       DateTime @default(now())
+
+  @@index([repoId, createdAt])
+}
+
+model SecurityVerdict {
+  id                 String    @id @default(cuid())
+  repo               Repo?     @relation(fields: [repoId], references: [id])
+  repoId             String?
+  workItem           WorkItem? @relation(fields: [workItemId], references: [id])
+  workItemId         String?
+  advisoryRef        String
+  packageName        String
+  severity           String
+  verdict            String   // likely_irrelevant | likely_exploitable | needs_human
+  evidenceJson       Json     @default("[]")
+  reachablePathsJson Json     @default("[]")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([repoId, advisoryRef])
+}
+
+model SupportResolution {
+  id                String   @id @default(cuid())
+  workItem          WorkItem @relation(fields: [workItemId], references: [id])
+  workItemId        String   @unique
+  status            String   @default("draft") // draft | approved | sent
+  answerDraft       String
+  docsPatchJson     Json     @default("{}")
+  knowledgeRefsJson Json     @default("[]")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model MoneyThread {
+  id             String   @id @default(cuid())
+  repo           Repo?    @relation(fields: [repoId], references: [id])
+  repoId         String?
+  source         String
+  threadKey      String
+  kind           String   // sponsor | enterprise | invoice | compliance
+  status         String   // new_sponsor | invoice_due | license_request | tax_doc_needed | renewal_failed
+  counterparty   String?
+  subject        String
+  amountUsd      Float?
+  currency       String?
+  payloadJson    Json     @default("{}")
+  nextActionJson Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([source, threadKey])
+  @@index([status, updatedAt])
 }

@@ -130,7 +130,7 @@ async function _runManager(packet: WorkPacket): Promise<void> {
       try {
         await addLabels(octokit, repoOwner, repoName, issueNumber, allLabels);
         await recordAction(runId, "add_labels", { issueNumber }, { labels: allLabels }, "success");
-      } catch (err) {
+      } catch {
         await recordAction(runId, "add_labels", { issueNumber }, { labels: allLabels }, "error");
       }
     }
@@ -141,7 +141,7 @@ async function _runManager(packet: WorkPacket): Promise<void> {
       try {
         const comment = await postIssueComment(octokit, repoOwner, repoName, issueNumber, body);
         await recordAction(runId, "post_comment", { issueNumber }, { body }, "success", comment.html_url);
-      } catch (err) {
+      } catch {
         await recordAction(runId, "post_comment", { issueNumber }, { body }, "error");
       }
     }
@@ -171,7 +171,7 @@ async function _runManager(packet: WorkPacket): Promise<void> {
       );
       checkRunId = check.id;
       await recordAction(runId, "create_check_run", { prNumber }, { checkRunId }, "success");
-    } catch (err) {
+    } catch {
       await recordAction(runId, "create_check_run", { prNumber }, {}, "error");
     }
 

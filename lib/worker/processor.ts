@@ -4,7 +4,7 @@
  */
 
 import { prisma } from "../db/client";
-import { getInstallationClient, getRepoConfig, getIssue, searchIssues, getPullRequest, getPullRequestFiles, listMergedPullRequests } from "../github/client";
+import { getInstallationClient, getRepoConfig, searchIssues, getPullRequest, getPullRequestFiles, listMergedPullRequests } from "../github/client";
 import { parseConfig } from "../github/config";
 import { runManager } from "../agents/manager";
 import type { WorkPacket } from "../agents/types";
@@ -39,7 +39,7 @@ export async function processEvent(githubEventId: string): Promise<void> {
       data: {
         repoId: repo.id,
         githubEventId: event.id,
-        runType: mapEventToRunType(event.eventType, event.action),
+        runType: mapEventToRunType(event.eventType),
         status: "running",
         triggerSource: "webhook",
         githubTargetType: getTargetType(event.eventType),
@@ -145,7 +145,6 @@ export async function processEvent(githubEventId: string): Promise<void> {
       data: { status: "done", processedAt: new Date() },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
     await prisma.githubEvent.update({
       where: { id: githubEventId },
       data: { status: "error" },
@@ -241,7 +240,7 @@ async function handleSlashCommand(
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function mapEventToRunType(eventType: string, action: string | null): string {
+function mapEventToRunType(eventType: string): string {
   if (eventType === "issues") return "issue_triage";
   if (eventType === "pull_request") return "pr_review";
   if (eventType === "workflow_run") return "workflow_failure";

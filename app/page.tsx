@@ -1,186 +1,125 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db/client";
+import { getInboxState } from "@/lib/inbox/service";
+import { InboxClient } from "./inbox-client";
 import { HomeConsole } from "./home-console";
 import { WatchConsole } from "./watch-console";
-import type { BriefPriorityJson, BriefContextJson } from "@/lib/briefs/generate";
 
 export const dynamic = "force-dynamic";
 
-const AGENTS = [
-  { name: "Planner",   color: "bg-slate-100 text-slate-700 border-slate-200",     desc: "Reads each event, decides which specialists to call and why" },
-  { name: "Triage",    color: "bg-violet-50 text-violet-700 border-violet-200",   desc: "Classifies issues — bug, feature, security, duplicate, needs-info" },
-  { name: "Community", color: "bg-pink-50 text-pink-700 border-pink-200",         desc: "Rewrites bot comments for tone. Flags hostile threads." },
-  { name: "PR Review", color: "bg-amber-50 text-amber-700 border-amber-200",      desc: "Risk-ranks PRs, flags missing tests, security-sensitive paths" },
-  { name: "Docs",      color: "bg-sky-50 text-sky-700 border-sky-200",            desc: "Detects docs drift when PRs change public-facing behavior" },
-  { name: "Release",   color: "bg-orange-50 text-orange-700 border-orange-200",   desc: "Detects release note need, drafts changelog bullet" },
-  { name: "Priority",  color: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200", desc: "Synthesizes all outputs, ranks 3-7 items the maintainer should act on today" },
-  { name: "Briefing",  color: "bg-emerald-50 text-emerald-700 border-emerald-200", desc: "Writes the morning email from the ranked priority list" },
-];
-
 export default async function HomePage() {
-  const [recent, watched] = await Promise.all([
-    prisma.brief.findMany({ orderBy: { generatedAt: "desc" }, take: 12, include: { repo: true } }),
-    prisma.watchedRepo.findMany({ where: { active: true }, orderBy: { createdAt: "desc" } }),
+  const [inbox, watched, recent] = await Promise.all([
+    getInboxState(),
+    prisma.watchedRepo.findMany({
+      where: { active: true },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    }),
+    prisma.brief.findMany({
+      orderBy: { generatedAt: "desc" },
+      take: 6,
+      include: { repo: true },
+    }),
   ]);
 
-  const byRepo = new Map<string, (typeof recent)[number]>();
-  for (const brief of recent) {
-    const key = `${brief.repo.owner}/${brief.repo.name}`;
-    if (!byRepo.has(key)) byRepo.set(key, brief);
-  }
-  const latestBriefs = [...byRepo.values()].slice(0, 6);
-
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-900">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-
-        {/* Header */}
-        <header className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs uppercase tracking-widest text-indigo-600 font-bold mb-1">Maintainer&apos;s Cabinet</div>
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-1">Management Dashboard</h1>
-            <p className="text-gray-500">A team of AI agents running your OSS maintainer function. Autonomous, traceable, and configurable.</p>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f6f7fb,white_35%)] text-gray-900">
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        <header className="mb-8 flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-3xl">
+            <div className="text-xs font-bold uppercase tracking-[0.28em] text-gray-400">Maintainer OS</div>
+            <h1 className="mt-2 text-5xl font-semibold tracking-tight text-gray-950">
+              One queue. One active card. Clear the mess.
+            </h1>
+            <p className="mt-4 text-base leading-7 text-gray-600">
+              The homepage is now the execution surface. The rest of the product stays available as operator tooling and trace depth when you need it.
+            </p>
           </div>
-          <Link
-            href="/evals"
-            className="shrink-0 bg-white hover:bg-indigo-50 border border-gray-200 text-indigo-600 text-sm font-bold px-5 py-2.5 rounded-xl transition-colors shadow-sm flex items-center gap-2"
-          >
-            <span>Eval Runner</span>
-            <span className="text-indigo-400">→</span>
-          </Link>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/evals"
+              className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Eval runner
+            </Link>
+            <Link
+              href="/diff"
+              className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Diff runs
+            </Link>
+          </div>
         </header>
 
-        {/* Agent roster — the full team at a glance */}
-        <section className="mb-8">
-          <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">The Cabinet — 8 Specialist Agents</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {AGENTS.map((agent) => (
-              <div key={agent.name} className={`rounded-xl border px-4 py-3 ${agent.color}`}>
-                <div className="text-sm font-bold mb-0.5">{agent.name}</div>
-                <div className="text-xs leading-snug opacity-75">{agent.desc}</div>
-              </div>
-            ))}
+        <InboxClient initialState={inbox} />
+
+        <section className="mt-10 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="space-y-6">
+            <div className="rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-bold uppercase tracking-[0.22em] text-gray-400">Operator Tools</div>
+              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Manual controls stay available</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600">
+                These are now secondary surfaces. They exist for forcing a digest, configuring watched repos, and inspecting the old control-plane workflow.
+              </p>
+            </div>
+            <HomeConsole />
           </div>
+
+          <WatchConsole
+            initial={watched.map((repo) => ({
+              ...repo,
+              lastRunAt: repo.lastRunAt?.toISOString() ?? null,
+            }))}
+          />
         </section>
 
-        {/* Two-column: manual brief + autonomous schedule */}
-        <div className="grid xl:grid-cols-2 gap-6 mb-8">
-          {/* Manual brief */}
-          <div className="flex flex-col gap-4">
-            <HomeConsole />
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">How a Brief is Generated</div>
-              <ol className="space-y-2 text-sm text-gray-600">
-                <li><span className="text-indigo-600 font-bold font-mono mr-2">01</span> Fetch full issue queue + PR queue + recent commits via <code className="text-xs bg-gray-100 px-1 rounded">gh</code> CLI</li>
-                <li><span className="text-indigo-600 font-bold font-mono mr-2">02</span> Planner decides which agents each item needs</li>
-                <li><span className="text-indigo-600 font-bold font-mono mr-2">03</span> Triage + PR Review run in parallel across the full queue</li>
-                <li><span className="text-indigo-600 font-bold font-mono mr-2">04</span> Priority agent synthesizes outputs, ranks top items</li>
-                <li><span className="text-indigo-600 font-bold font-mono mr-2">05</span> Briefing agent writes the email — every step traceable</li>
-              </ol>
-            </div>
-          </div>
-
-          {/* Autonomous schedule */}
-          <WatchConsole initial={watched.map((r) => ({
-            ...r,
-            lastRunAt: r.lastRunAt?.toISOString() ?? null,
-          }))} />
-        </div>
-
-        {/* Recent briefs */}
-        {latestBriefs.length > 0 && (
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-4">
+        {recent.length > 0 ? (
+          <section className="mt-10">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <div className="text-xs uppercase tracking-wider text-gray-400 font-bold">Archive</div>
-                <h2 className="text-2xl font-bold text-gray-900">Recent Briefs</h2>
+                <div className="text-xs font-bold uppercase tracking-[0.22em] text-gray-400">Trace Archive</div>
+                <h2 className="mt-1 text-2xl font-semibold text-gray-900">Recent digests and observability packets</h2>
               </div>
-              <Link href="/evals" className="text-sm text-indigo-600 font-semibold hover:underline">Eval runner →</Link>
+              <Link href="/evals" className="text-sm font-semibold text-gray-500 hover:text-gray-900">
+                Open evals
+              </Link>
             </div>
 
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {latestBriefs.map((brief) => {
-                const priority = brief.prioritiesJson as unknown as BriefPriorityJson;
-                const context = brief.contextJson as unknown as BriefContextJson;
-                return (
-                  <Link
-                    key={brief.id}
-                    href={`/briefs/${brief.id}`}
-                    className="rounded-2xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-md transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <div className="text-sm font-bold text-gray-900 font-mono">{brief.repo.owner}/{brief.repo.name}</div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs font-mono text-indigo-600 font-semibold">{brief.latencyMs ? `${(brief.latencyMs / 1000).toFixed(1)}s` : "-"}</div>
-                        <div className="text-xs text-gray-400">{formatRelative(brief.generatedAt)}</div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {recent.map((brief) => (
+                <Link
+                  key={brief.id}
+                  href={`/briefs/${brief.id}`}
+                  className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        {brief.repo.owner}/{brief.repo.name}
                       </div>
+                      <div className="mt-1 text-xs text-gray-400">{formatDate(brief.generatedAt)}</div>
                     </div>
-
-                    <div className="text-sm text-gray-600 mb-3 line-clamp-2">{priority.summary_line}</div>
-
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <MiniStat label="Issues" value={context.issuesCount} />
-                      <MiniStat label="PRs" value={context.prsCount} />
-                      <MiniStat label="Alerts" value={priority.items.length} />
+                    <div className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-500">
+                      {brief.emailSentAt ? "emailed" : "draft"}
                     </div>
-
-                    <div className="space-y-1.5 mb-3">
-                      {priority.items.slice(0, 3).map((item, i) => (
-                        <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-1.5 flex items-center justify-between gap-2">
-                          <span className="text-xs text-gray-700 font-medium line-clamp-1">{item.reference} {item.title}</span>
-                          <PriorityPill priority={item.priority} />
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-400">{brief.emailSentAt ? `sent to ${brief.emailRecipient}` : "generated"}</span>
-                      <span className="text-indigo-600 font-semibold">open →</span>
-                    </div>
-                  </Link>
-                );
-              })}
+                  </div>
+                  <div className="mt-4 text-sm leading-6 text-gray-600">{brief.subject}</div>
+                </Link>
+              ))}
             </div>
           </section>
-        )}
-
-        <footer className="border-t border-gray-200 pt-5 flex items-center justify-between text-xs text-gray-400 font-mono">
-          <Link href="/evals" className="hover:text-gray-600">evals</Link>
-          <div>8 agents · autonomous + on-demand · trace-first · agentmail</div>
-        </footer>
+        ) : null}
       </div>
     </main>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-center">
-      <div className="text-lg font-bold text-gray-900">{value}</div>
-      <div className="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">{label}</div>
-    </div>
-  );
-}
-
-function PriorityPill({ priority }: { priority: string }) {
-  const style = priority === "do_today"
-    ? "bg-red-100 text-red-700 border-red-200"
-    : priority === "this_week"
-    ? "bg-amber-100 text-amber-700 border-amber-200"
-    : "bg-gray-100 text-gray-500 border-gray-200";
-  return (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${style}`}>
-      {priority.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function formatRelative(date: Date) {
-  const diffMs = Date.now() - date.getTime();
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+function formatDate(date: Date) {
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }

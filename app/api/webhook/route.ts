@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
 
   // Verify signature
   const secret = process.env.GITHUB_WEBHOOK_SECRET ?? "";
-  if (secret && !verifySignature(secret, signature, rawBody)) {
+  if (!secret) {
+    return NextResponse.json({ error: "GITHUB_WEBHOOK_SECRET is not configured" }, { status: 503 });
+  }
+  if (!verifySignature(secret, signature, rawBody)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 

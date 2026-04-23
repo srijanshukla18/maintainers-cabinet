@@ -128,7 +128,6 @@ function analyzePr(packet: WorkPacket): {
   const changedCount = pr.changedFiles.length;
   const docsOnly = filenames.length > 0 && filenames.every((name) => matchesAnyPattern(name, config.review.docs_paths));
   const touchesRisky = filenames.some((name) => matchesAnyPattern(name, config.review.risky_paths));
-  const touchesSource = filenames.some((name) => matchesAnyPattern(name, config.review.require_tests_for));
   const hasTests = filenames.some(isTestFile);
   const hasContext = body.length >= 20;
   const ciSuccess = pr.ciStatus === "success";

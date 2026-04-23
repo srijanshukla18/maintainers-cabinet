@@ -7,7 +7,6 @@ import { DEFAULT_CONFIG, type WorkPacket } from "../agents/types";
 import { runTriageAgent } from "../agents/triage";
 import { runCommunityAgent } from "../agents/community";
 import { runPrReviewAgent } from "../agents/pr-review";
-import { runDocsAgent } from "../agents/docs";
 import { runReleaseAgent } from "../agents/release";
 
 type EvalCase = {

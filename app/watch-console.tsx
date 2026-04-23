@@ -147,7 +147,8 @@ export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
 
   useEffect(() => {
     fetch("/api/cron", { method: "GET" })
-      .then((r) => setSchedulerOnline(r.ok))
+      .then((r) => r.json())
+      .then((data: { scheduler?: { started?: boolean } }) => setSchedulerOnline(Boolean(data.scheduler?.started)))
       .catch(() => setSchedulerOnline(false));
   }, []);
 
@@ -199,7 +200,7 @@ export function WatchConsole({ initial }: { initial: WatchedRepo[] }) {
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full animate-pulse ${schedulerOnline ? "bg-emerald-500" : "bg-gray-300"}`}></div>
           <span className={`text-xs font-mono font-semibold ${schedulerOnline ? "text-emerald-600" : "text-gray-400"}`}>
-            {schedulerOnline ? "scheduler active" : "scheduler offline"}
+            {schedulerOnline ? "scheduler active" : "manual trigger only"}
           </span>
         </div>
       </div>

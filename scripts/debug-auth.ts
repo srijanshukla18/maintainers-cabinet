@@ -1,7 +1,6 @@
 import { App } from '@octokit/app';
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
 import 'dotenv/config';
+import { prisma } from '../lib/db/client';
 
 async function main() {
   const app = new App({
@@ -10,16 +9,13 @@ async function main() {
     webhooks: { secret: process.env.GITHUB_WEBHOOK_SECRET! }
   });
 
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-  const prisma = new PrismaClient({ adapter } as any);
-
   const repo = await prisma.repo.findFirst();
   console.log('installationId:', repo?.installationId?.toString());
 
   const octokit = await app.getInstallationOctokit(Number(repo!.installationId));
-  const auth = await (octokit as any).auth({ type: 'installation' });
+  const auth = await (octokit.auth as (options: { type: 'installation' }) => Promise<{ token?: string }>)({ type: 'installation' });
   console.log('auth keys:', Object.keys(auth));
-  console.log('token prefix:', (auth as any).token?.slice(0, 15));
+  console.log('token prefix:', auth.token?.slice(0, 15));
   await prisma.$disconnect();
 }
 

@@ -71,6 +71,26 @@ export async function postIssueComment(octokit: Octokit, owner: string, repo: st
   return res.data;
 }
 
+export async function closeIssue(octokit: Octokit, owner: string, repo: string, issueNumber: number) {
+  const res = await octokit.issues.update({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    state: "closed",
+  });
+  return res.data;
+}
+
+export async function reopenIssue(octokit: Octokit, owner: string, repo: string, issueNumber: number) {
+  const res = await octokit.issues.update({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    state: "open",
+  });
+  return res.data;
+}
+
 export async function getPullRequest(octokit: Octokit, owner: string, repo: string, pullNumber: number) {
   const res = await octokit.pulls.get({ owner, repo, pull_number: pullNumber });
   return res.data;
