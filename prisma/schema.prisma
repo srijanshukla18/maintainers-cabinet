@@ -6,352 +6,96 @@ datasource db {
   provider = "postgresql"
 }
 
-model Repo {
-  id             String   @id @default(cuid())
-  githubRepoId   BigInt?  @unique
-  owner          String
-  name           String
-  installationId BigInt?
-  defaultBranch  String   @default("main")
-  accessMode     String   @default("public") // public | installed
-  configJson     Json     @default("{}")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model User {
+  id                String    @id @default(cuid())
+  githubUserId      BigInt    @unique
+  login             String
+  name              String?
+  avatarUrl         String?
+  githubAccessToken String
+  tokenType         String?
+  scope             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  githubEvents GithubEvent[]
-  runs         Run[]
-  briefs       Brief[]
-  memory       RepoMemory?
-  workItems    WorkItem[]
-  policyRules  PolicyRule[]
-  identities   IdentityProfile[]
-  graphSnapshots RepoGraphSnapshot[]
-  securityVerdicts SecurityVerdict[]
-  moneyThreads MoneyThread[]
-
-  @@unique([owner, name])
+  sessions Session[]
+  scans    Scan[]
 }
 
-model WatchedRepo {
-  id                  String   @id @default(cuid())
-  owner               String
-  name                String
-  emailRecipient      String
-  scheduleHour        Int      @default(8) // UTC hour to send brief
-  active              Boolean  @default(true)
-  // Autonomy settings (overrides .github/cabinet.yml)
-  autoPostComments    Boolean  @default(true)
-  autoAddLabels       Boolean  @default(true)
-  duplicateThreshold  Float    @default(0.82)
-  lastRunAt           DateTime?
-  lastBriefId         String?
-  createdAt           DateTime @default(now())
-
-  @@unique([owner, name])
-}
-
-model RepoMemory {
-  id              String   @id @default(cuid())
-  repo            Repo     @relation(fields: [repoId], references: [id])
-  repoId          String   @unique
-  lastBriefId     String?
-  lastBriefAt     DateTime?
-  summaryJson     Json     // rolling summary: top recurring themes, known contributors, patterns
-  knownIssueTypes Json     @default("[]") // e.g. ["support_question", "feature_request"] frequency
-  topContributors Json     @default("[]") // [{login, issueCount, prCount}]
-  recurringThemes Json     @default("[]") // ["CSI auth methods", "lease caching"]
-  previousActions Json     @default("[]") // what priority recommended last time
-  updatedAt       DateTime @updatedAt
-}
-
-model GithubEvent {
-  id          String    @id @default(cuid())
-  repo        Repo      @relation(fields: [repoId], references: [id])
-  repoId      String
-  deliveryId  String    @unique
-  eventType   String
-  action      String?
-  payloadJson Json
-  receivedAt  DateTime  @default(now())
-  processedAt DateTime?
-  status      String    @default("pending") // pending | processing | done | error
-
-  runs Run[]
-}
-
-model Run {
-  id                  String    @id @default(cuid())
-  repo                Repo      @relation(fields: [repoId], references: [id])
-  repoId              String
-  githubEvent         GithubEvent? @relation(fields: [githubEventId], references: [id])
-  githubEventId       String?
-  runType             String    // issue_triage | pr_review | workflow_failure | release_plan | slash_command
-  status              String    @default("pending") // pending | running | done | error
-  triggerSource       String    // webhook | slash_command | manual
-  githubTargetType    String?   // issue | pull_request
-  githubTargetNumber  Int?
-  startedAt           DateTime  @default(now())
-  finishedAt          DateTime?
-  latencyMs           Int?
-  summary             String?
-
-  agentSteps    AgentStep[]
-  githubActions GithubAction[]
-}
-
-model AgentStep {
-  id         String   @id @default(cuid())
-  run        Run      @relation(fields: [runId], references: [id])
-  runId      String
-  agentName  String
-  inputJson  Json
-  outputJson Json?
-  startedAt  DateTime @default(now())
-  finishedAt DateTime?
-  status     String   @default("running") // running | done | error
-  error      String?
-}
-
-model GithubAction {
-  id          String   @id @default(cuid())
-  run         Run      @relation(fields: [runId], references: [id])
-  runId       String
-  actionType  String   // add_labels | post_comment | create_check_run | update_check_run
-  targetJson  Json
-  payloadJson Json
-  status      String   @default("pending") // pending | success | error
-  githubUrl   String?
-  createdAt   DateTime @default(now())
-}
-
-model EvalCase {
+model Session {
   id        String   @id @default(cuid())
-  name      String   @unique
-  caseType  String   // issue_triage | pr_review | release | community
-  inputJson Json
-  expectedJson Json
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  lastSeenAt DateTime @default(now())
   createdAt DateTime @default(now())
 
-  evalResults EvalResult[]
+  @@index([userId])
+  @@index([expiresAt])
 }
 
-model EvalResult {
-  id          String   @id @default(cuid())
-  evalCase    EvalCase @relation(fields: [evalCaseId], references: [id])
-  evalCaseId  String
-  actualJson  Json?
-  scoreJson   Json?
-  passed      Boolean?
-  createdAt   DateTime @default(now())
+model Repo {
+  id              String   @id @default(cuid())
+  githubRepoId    BigInt?  @unique
+  owner           String
+  name            String
+  fullName        String
+  description     String?
+  defaultBranch   String   @default("main")
+  stars           Int      @default(0)
+  openIssuesCount Int      @default(0)
+  isPrivate       Boolean  @default(false)
+  language        String?
+  url             String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  scans Scan[]
+
+  @@unique([owner, name])
 }
 
-model Brief {
-  id             String   @id @default(cuid())
-  repo           Repo     @relation(fields: [repoId], references: [id])
-  repoId         String
-  generatedAt    DateTime @default(now())
-  subject        String
-  bodyMarkdown   String
-  bodyHtml       String
-  contextJson    Json     // collected data that went into the brief
-  prioritiesJson Json     // ranked items from Priority agent
-  tokensUsed     Int?
-  costUsd        Float?
-  latencyMs      Int?
-  emailSentAt    DateTime?
-  emailInboxId   String?
-  emailMessageId String?
-  emailRecipient String?
-  status         String   @default("done") // pending | done | error
-  runIds         String[] // linked agent runs
-  traceSteps     BriefTraceStep[]
+model Scan {
+  id          String    @id @default(cuid())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  repo        Repo      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  repoId      String
+  status      String    @default("pending") // pending | ready | deepening | complete | error
+  stage       String    @default("created") // created | initial | deepened
+  summary     String?
+  issueCount  Int       @default(0)
+  prCount     Int       @default(0)
+  costUsd     Float?
+  latencyMs   Int?
+  packetJson  Json      @default("{}")
+  error       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
 
-  @@index([repoId, generatedAt])
+  traceSteps ScanTraceStep[]
+
+  @@index([userId, createdAt])
+  @@index([repoId, createdAt])
+  @@index([status, createdAt])
 }
 
-model BriefTraceStep {
-  id         String   @id @default(cuid())
-  brief      Brief    @relation(fields: [briefId], references: [id])
-  briefId    String
-  stepType   String   // fetch_repo | fetch_issues | triage_issue | review_pr | priority | briefing
+model ScanTraceStep {
+  id         String    @id @default(cuid())
+  scan       Scan      @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scanId     String
+  stepType   String
   stepName   String
-  targetRef  String?
-  status     String   @default("done") // pending | done | error
-  inputJson  Json
+  status     String    @default("done") // pending | running | done | error
+  inputJson  Json      @default("{}")
   outputJson Json?
-  traceJson  Json?
   latencyMs  Int?
-  tokensIn   Int?
-  tokensOut  Int?
   costUsd    Float?
   error      String?
-  startedAt  DateTime @default(now())
+  startedAt  DateTime  @default(now())
   finishedAt DateTime?
 
-  @@index([briefId, startedAt])
-}
-
-model WorkItem {
-  id               String   @id @default(cuid())
-  repo             Repo?    @relation(fields: [repoId], references: [id])
-  repoId           String?
-  kind             String
-  source           String
-  status           String   @default("open") // open | snoozed | resolved
-  title            String
-  summary          String
-  sourceRef        String?
-  sourceUrl        String?
-  urgencyScore     Int      @default(0)
-  impactScore      Int      @default(0)
-  trustScore       Int?
-  slopScore        Int?
-  autoExecutable   Boolean  @default(false)
-  requiresApproval Boolean  @default(true)
-  evidenceJson     Json     @default("[]")
-  payloadJson      Json     @default("{}")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  snoozedUntil     DateTime?
-
-  actions    ActionProposal[]
-  executions ExecutionRecord[]
-  supportResolution SupportResolution?
-  securityVerdicts  SecurityVerdict[]
-
-  @@index([status, createdAt])
-  @@index([repoId, createdAt])
-}
-
-model ActionProposal {
-  id             String   @id @default(cuid())
-  workItem       WorkItem @relation(fields: [workItemId], references: [id])
-  workItemId     String
-  kind           String
-  label          String
-  status         String   @default("proposed") // proposed | approved | rejected | executed | error
-  reversible     Boolean  @default(true)
-  downstreamJson Json     @default("[]")
-  payloadJson    Json     @default("{}")
-  createdAt      DateTime @default(now())
-  decidedAt      DateTime?
-
-  executions ExecutionRecord[]
-
-  @@index([workItemId, status])
-}
-
-model ExecutionRecord {
-  id               String          @id @default(cuid())
-  workItem         WorkItem?       @relation(fields: [workItemId], references: [id])
-  workItemId       String?
-  actionProposal   ActionProposal? @relation(fields: [actionProposalId], references: [id], onDelete: SetNull)
-  actionProposalId String?
-  executorKind     String
-  status           String          @default("done") // done | error
-  summary          String
-  payloadJson      Json            @default("{}")
-  createdAt        DateTime        @default(now())
-
-  @@index([createdAt])
-}
-
-model PolicyRule {
-  id         String   @id @default(cuid())
-  repo       Repo?    @relation(fields: [repoId], references: [id])
-  repoId     String?
-  scope      String   // global | repo | surface
-  name       String
-  ruleType   String
-  enabled    Boolean  @default(true)
-  configJson Json     @default("{}")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([repoId, enabled])
-}
-
-model IdentityProfile {
-  id           String   @id @default(cuid())
-  repo         Repo?    @relation(fields: [repoId], references: [id])
-  repoId       String?
-  source       String
-  externalKey  String
-  login        String?
-  displayName  String?
-  trustScore   Int?
-  slopScore    Int?
-  statsJson    Json     @default("{}")
-  evidenceJson Json     @default("[]")
-  lastSeenAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([source, externalKey])
-  @@index([repoId, source])
-}
-
-model RepoGraphSnapshot {
-  id              String   @id @default(cuid())
-  repo            Repo     @relation(fields: [repoId], references: [id])
-  repoId          String
-  revision        String
-  languageSummary Json     @default("{}")
-  symbolsJson     Json     @default("[]")
-  edgesJson       Json     @default("[]")
-  publicApisJson  Json     @default("[]")
-  createdAt       DateTime @default(now())
-
-  @@index([repoId, createdAt])
-}
-
-model SecurityVerdict {
-  id                 String    @id @default(cuid())
-  repo               Repo?     @relation(fields: [repoId], references: [id])
-  repoId             String?
-  workItem           WorkItem? @relation(fields: [workItemId], references: [id])
-  workItemId         String?
-  advisoryRef        String
-  packageName        String
-  severity           String
-  verdict            String   // likely_irrelevant | likely_exploitable | needs_human
-  evidenceJson       Json     @default("[]")
-  reachablePathsJson Json     @default("[]")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  @@index([repoId, advisoryRef])
-}
-
-model SupportResolution {
-  id                String   @id @default(cuid())
-  workItem          WorkItem @relation(fields: [workItemId], references: [id])
-  workItemId        String   @unique
-  status            String   @default("draft") // draft | approved | sent
-  answerDraft       String
-  docsPatchJson     Json     @default("{}")
-  knowledgeRefsJson Json     @default("[]")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-model MoneyThread {
-  id             String   @id @default(cuid())
-  repo           Repo?    @relation(fields: [repoId], references: [id])
-  repoId         String?
-  source         String
-  threadKey      String
-  kind           String   // sponsor | enterprise | invoice | compliance
-  status         String   // new_sponsor | invoice_due | license_request | tax_doc_needed | renewal_failed
-  counterparty   String?
-  subject        String
-  amountUsd      Float?
-  currency       String?
-  payloadJson    Json     @default("{}")
-  nextActionJson Json     @default("{}")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@unique([source, threadKey])
-  @@index([status, updatedAt])
+  @@index([scanId, startedAt])
 }

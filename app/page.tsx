@@ -1,115 +1,90 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db/client";
-import { getInboxState } from "@/lib/inbox/service";
-import { InboxClient } from "./inbox-client";
-import { HomeConsole } from "./home-console";
-import { WatchConsole } from "./watch-console";
+import { getCurrentUser } from "@/lib/auth/session";
+import { RepoScanner } from "./repo-scanner";
+import { LogoutButton } from "./logout-button";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [inbox, watched, recent] = await Promise.all([
-    getInboxState(),
-    prisma.watchedRepo.findMany({
-      where: { active: true },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-    }),
-    prisma.brief.findMany({
-      orderBy: { generatedAt: "desc" },
-      take: 6,
-      include: { repo: true },
-    }),
-  ]);
+  const user = await getCurrentUser();
+  if (!user) redirect("/api/auth/github/start");
+
+  const recentScans = await prisma.scan.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    take: 8,
+    include: { repo: true },
+  });
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f6f7fb,white_35%)] text-gray-900">
+    <main className="min-h-screen bg-[#f7f8fb] text-gray-950">
       <div className="mx-auto max-w-7xl px-6 py-8">
-        <header className="mb-8 flex flex-wrap items-end justify-between gap-6">
-          <div className="max-w-3xl">
-            <div className="text-xs font-bold uppercase tracking-[0.28em] text-gray-400">Maintainer OS</div>
-            <h1 className="mt-2 text-5xl font-semibold tracking-tight text-gray-950">
-              One queue. One active card. Clear the mess.
-            </h1>
-            <p className="mt-4 text-base leading-7 text-gray-600">
-              The homepage is now the execution surface. The rest of the product stays available as operator tooling and trace depth when you need it.
-            </p>
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-6">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">Cabinet</div>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Maintainer attention triage</h1>
           </div>
-
           <div className="flex items-center gap-3">
-            <Link
-              href="/evals"
-              className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Eval runner
-            </Link>
-            <Link
-              href="/diff"
-              className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Diff runs
-            </Link>
+            {user.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatarUrl} alt="" className="h-9 w-9 rounded-full border border-gray-200" />
+            ) : null}
+            <div className="text-right">
+              <div className="text-sm font-semibold">{user.login}</div>
+              <div className="text-xs text-gray-400">GitHub data, private recommendations</div>
+            </div>
+            <LogoutButton />
           </div>
         </header>
 
-        <InboxClient initialState={inbox} />
-
-        <section className="mt-10 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="space-y-6">
-            <div className="rounded-[2rem] border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="text-xs font-bold uppercase tracking-[0.22em] text-gray-400">Operator Tools</div>
-              <h2 className="mt-2 text-2xl font-semibold text-gray-900">Manual controls stay available</h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                These are now secondary surfaces. They exist for forcing a digest, configuring watched repos, and inspecting the old control-plane workflow.
+        <section className="grid gap-8 lg:grid-cols-[1fr_380px]">
+          <div>
+            <div className="max-w-3xl">
+              <h2 className="text-5xl font-semibold tracking-tight text-gray-950">
+                Find what maintainers should inspect first.
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-gray-600">
+                Paste any public GitHub repo. Cabinet compresses the open issue and PR queue into a private attention packet:
+                risky PRs, likely AI slop, missing-repro reports, duplicate clusters, docs/release impact, and security-looking threads.
               </p>
             </div>
-            <HomeConsole />
+            <RepoScanner />
           </div>
 
-          <WatchConsole
-            initial={watched.map((repo) => ({
-              ...repo,
-              lastRunAt: repo.lastRunAt?.toISOString() ?? null,
-            }))}
-          />
-        </section>
-
-        {recent.length > 0 ? (
-          <section className="mt-10">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-[0.22em] text-gray-400">Trace Archive</div>
-                <h2 className="mt-1 text-2xl font-semibold text-gray-900">Recent digests and observability packets</h2>
-              </div>
-              <Link href="/evals" className="text-sm font-semibold text-gray-500 hover:text-gray-900">
-                Open evals
-              </Link>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {recent.map((brief) => (
-                <Link
-                  key={brief.id}
-                  href={`/briefs/${brief.id}`}
-                  className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm transition-colors hover:bg-gray-50"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {brief.repo.owner}/{brief.repo.name}
+          <aside className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">Recent packets</div>
+            <div className="mt-4 space-y-3">
+              {recentScans.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-5 text-sm text-gray-500">
+                  Your scanned repos will appear here.
+                </div>
+              ) : (
+                recentScans.map((scan) => (
+                  <a
+                    key={scan.id}
+                    href={`/scans/${scan.id}`}
+                    className="block rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition-colors hover:bg-white"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold">
+                          {scan.repo.owner}/{scan.repo.name}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-400">
+                          {scan.issueCount} issues · {scan.prCount} PRs · {formatDate(scan.createdAt)}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-gray-400">{formatDate(brief.generatedAt)}</div>
+                      <span className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-500">
+                        {scan.status}
+                      </span>
                     </div>
-                    <div className="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-500">
-                      {brief.emailSentAt ? "emailed" : "draft"}
-                    </div>
-                  </div>
-                  <div className="mt-4 text-sm leading-6 text-gray-600">{brief.subject}</div>
-                </Link>
-              ))}
+                  </a>
+                ))
+              )}
             </div>
-          </section>
-        ) : null}
+          </aside>
+        </section>
       </div>
     </main>
   );
@@ -123,3 +98,4 @@ function formatDate(date: Date) {
     minute: "2-digit",
   });
 }
+

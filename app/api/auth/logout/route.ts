@@ -1,17 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { destroySession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth/session";
 
-const AUTH_COOKIE = "cabinet-auth";
-
-export async function POST() {
+export async function POST(req: NextRequest) {
+  await destroySession(req.cookies.get(SESSION_COOKIE)?.value);
   const response = NextResponse.json({ ok: true });
-  response.cookies.set({
-    name: AUTH_COOKIE,
-    value: "",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
-  });
+  response.cookies.set(SESSION_COOKIE, "", sessionCookieOptions(0));
   return response;
 }
+

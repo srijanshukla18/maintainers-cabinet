@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Maintainer's Cabinet",
-  description: "GitHub-native multi-agent maintainer assistant",
+  title: "Cabinet",
+  description: "Attention triage for overloaded open-source maintainers",
 };
 
 export default function RootLayout({
